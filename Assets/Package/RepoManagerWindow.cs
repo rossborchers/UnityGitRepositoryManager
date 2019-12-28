@@ -79,13 +79,8 @@ public class RepoManagerWindow : EditorWindow
 			File.WriteAllText(_rootDependenciesFile, json);
 		}
 
-
 		//Update repo panels
-		if (_repoPanels == null)
-		{
-			_repoPanels = new List<RepoPanel>();
-		}
-
+		_repoPanels = new List<RepoPanel>();
 		foreach (Dependency dependency in _dependencies.Dependencies)
 		{
 			if (_repoPanels.FindAll(p => dependency.Url == p.DependencyInfo.Url).Count == 0)
@@ -95,6 +90,11 @@ public class RepoManagerWindow : EditorWindow
 		}
 
 		Repaint();
+	}
+
+	private void OnFocus()
+	{
+		UpdateDependencies();
 	}
 
 	private void OnEnable()

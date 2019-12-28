@@ -49,8 +49,8 @@ namespace GitRepositoryManager
 		{
 			TestState testState = (TestState)state;
 
-			bool credentialSuccess = false;
-			string credentialMessage = "Credential flow has yet to complete. Did the test callback execute prematurely?";
+			bool credentialSuccess = true;
+			string credentialMessage = "Credential flow has yet to complete. This probably means the repository is public and required no credentials.";
 			try
 			{
 				// Credential error message handling got  a bit complicated as libgit2sharp eats exceptions and reports "this remote has never connected" for any problem.
