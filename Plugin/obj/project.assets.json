@@ -2865,6 +2865,7 @@
   "projectFileDependencyGroups": {
     ".NETStandard,Version=v2.0": [
       "LibGit2Sharp >= 0.26.2",
+      "LibGit2Sharp.NativeBinaries >= 2.0.306",
       "Microsoft.Alm.Authentication >= 4.3.0",
       "NETStandard.Library >= 2.0.3"
     ]
@@ -2876,11 +2877,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Projects\\Ross\\PackageManager\\PackageManager.csproj",
-      "projectName": "PackageManager",
-      "projectPath": "C:\\Projects\\Ross\\PackageManager\\PackageManager.csproj",
+      "projectUniqueName": "C:\\Projects\\Ross\\UnityGitRepositoryManager\\Plugin\\GitRepositoryManager.csproj",
+      "projectName": "GitRepositoryManager",
+      "projectPath": "C:\\Projects\\Ross\\UnityGitRepositoryManager\\Plugin\\GitRepositoryManager.csproj",
       "packagesPath": "C:\\Users\\Renderheads 1\\.nuget\\packages\\",
-      "outputPath": "C:\\Projects\\Ross\\PackageManager\\obj\\",
+      "outputPath": "C:\\Projects\\Ross\\UnityGitRepositoryManager\\Plugin\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
@@ -2913,6 +2914,10 @@
           "LibGit2Sharp": {
             "target": "Package",
             "version": "[0.26.2, )"
+          },
+          "LibGit2Sharp.NativeBinaries": {
+            "target": "Package",
+            "version": "[2.0.306, )"
           },
           "Microsoft.Alm.Authentication": {
             "target": "Package",

@@ -1,10 +1,10 @@
 ﻿
 using LibGit2Sharp;
-using PackageManager.CredentialManagers;
-using System;
+using GitRepositoryManager.CredentialManagers;
 using System.Threading;
+using System;
 
-namespace PackageManager
+namespace GitRepositoryManager
 {
 	/// <summary>
 	/// Note readonly once created. Create a new one to change values.
@@ -78,7 +78,11 @@ namespace PackageManager
 			RepoState state = (RepoState)stateInfo;
 			CloneOptions options = new CloneOptions()
 			{
-				CredentialsProvider = (credsUrl, user, supportedCredentials) => state.CredentialManager.GetCredentials(credsUrl, user, supportedCredentials),
+				CredentialsProvider = (credsUrl, user, supportedCredentials) =>
+				{
+					state.CredentialManager.GetCredentials(credsUrl, user, supportedCredentials, out var credentials, out string message);
+					return credentials;
+				},
 
 				IsBare = false, // True will result in a bare clone, false a full clone.
 				Checkout = false, // If true, the origin's HEAD will be checked out. This only applies to non-bare repositories.

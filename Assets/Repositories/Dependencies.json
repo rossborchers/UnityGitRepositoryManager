@@ -1,0 +1,10 @@
+{
+    "Dependencies": [
+        {
+            "Name": "UnityGitRepositoryManager",
+            "Url": "https://github.com/rossborchers/UnityGitRepositoryManager",
+            "SubDirectory": "",
+            "Branch": "master"
+        }
+    ]
+}
