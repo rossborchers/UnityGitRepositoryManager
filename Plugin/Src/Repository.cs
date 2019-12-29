@@ -98,6 +98,7 @@ namespace GitRepositoryManager
 
 		private ConcurrentQueue<Progress> _progressQueue = new ConcurrentQueue<Progress>();
 
+
 		public Repository(ICredentialManager credentials, string url, string localDestination, string copyDestination, string subFolder, string branch = "master", string tag = "")
 		{
 			_state = new RepoState
@@ -110,18 +111,13 @@ namespace GitRepositoryManager
 				Branch = branch,
 				Tag = tag
 			};
-
-			// Removed for now as unity recompiles on import, causing an infinate recompile, update repo, import asset, recompile etc.
-			// The aditional benefit we get for not updating automatically is we can make local changes with less worry about an update overwriting. 
-			// Although we should still check for changes before updating.
-			//TryUpdate();
 		}
 
 		public bool TryUpdate()
 		{
 			if(!_inProgress)
 			{
-				_inProgress = true;
+				_inProgress = true;	
 				_lastOperationSuccess = true;
 				ThreadPool.QueueUserWorkItem(UpdateTask, _state);
 				return true;
@@ -291,7 +287,7 @@ namespace GitRepositoryManager
 				TagFetchMode = TagFetchMode.All,
 				OnTransferProgress = new LibGit2Sharp.Handlers.TransferProgressHandler((progress) => 
 				{
-					_progressQueue.Enqueue(new Progress(progress.ReceivedObjects / progress.TotalObjects, "Fetching " + progress.ReceivedObjects + "/" + progress.TotalObjects + "(" + progress.ReceivedBytes + " bytes )"));
+					_progressQueue.Enqueue(new Progress(((float)progress.ReceivedObjects) / progress.TotalObjects, "Fetching " + progress.ReceivedObjects + "/" + progress.TotalObjects + "(" + progress.ReceivedBytes + " bytes )"));
 					
 					return _cancellationPending;
 				}),
@@ -357,7 +353,7 @@ namespace GitRepositoryManager
 					RecurseSubmodules = false, // Recursively clone submodules.
 					OnCheckoutProgress = new LibGit2Sharp.Handlers.CheckoutProgressHandler((message, value, total) =>
 					{
-						_progressQueue.Enqueue(new Progress(Math.Max(Math.Min(value / total, 1), 0), message));
+						_progressQueue.Enqueue(new Progress(Math.Max(Math.Min(((float)value) / total, 1), 0), message));
 					}), // Handler for checkout progress information.	
 					FetchOptions = fetchOptions
 				};

@@ -1,3 +1,10 @@
 {
-    "Dependencies": []
+    "Dependencies": [
+        {
+            "Name": "Bootstrapper",
+            "Url": "https://github.com/rossborchers/GameBootstrapper",
+            "SubFolder": "",
+            "Branch": "master"
+        }
+    ]
 }
