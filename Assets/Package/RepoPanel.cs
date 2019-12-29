@@ -22,6 +22,12 @@ namespace GitRepositoryManager
 		private string _repositoryCopyRoot;
 		private bool _repoWasInProgress;
 		public event Action<string, string, string, string> OnRemovalRequested = delegate { };
+		public event Action<List<string>> OnCopyFinished = delegate { };
+		public event Action<List<string>> OnDeleteAssetsRequested = delegate { };
+
+		//Note this updates the UI but its not serialized and should not be used for any buisiness logic.
+		//This is set when an update attempt occurs, or when we the assembly is reloaded.
+		private bool _hasLocalChanges;
 
 		public bool HasLocalChanges()
 		{
@@ -82,6 +88,9 @@ namespace GitRepositoryManager
 			DependencyInfo = info;
 			_credentialManager = credentials;
 			_repositoryCopyRoot = repositoryCopyRoot;
+
+			//Note if the hash gets too expensive we may have to cut this (maybe could be async?)
+			_hasLocalChanges = HasLocalChanges();
 		}
 
 		public bool Update()
@@ -137,7 +146,7 @@ namespace GitRepositoryManager
 		{
 			Rect rect;
 
-			if (_repo.InProgress || !_repo.LastOperationSuccess)
+			if (_repo.InProgress || !_repo.LastOperationSuccess || _hasLocalChanges)
 			{
 				rect = EditorGUILayout.GetControlRect(GUILayout.Height(50));
 			}
@@ -154,6 +163,7 @@ namespace GitRepositoryManager
 
 			Rect labelRect = rect;
 			labelRect.width = rect.x + rect.width - 50 - 15 - 5;
+			labelRect.x += 4;
 
 			Rect updatingLabelRect = labelRect;
 			updatingLabelRect.y += 12;
@@ -183,26 +193,84 @@ namespace GitRepositoryManager
 				GUI.Box(boxRect, "");
 			}
 
-			if ((_repo.InProgress || !_repo.LastOperationSuccess))
+			if ((_repo.InProgress || !_repo.LastOperationSuccess || _hasLocalChanges))
 			{
 				GUI.Box(progressRectOuter, "");
 
 				GUI.color = _repo.CancellationPending || !_repo.LastOperationSuccess ? Color.red : Color.green;
+
+				if(_hasLocalChanges)
+				{
+					GUI.color = Color.yellow;
+				}
 
 				GUI.Box(progressRectInner, "");
 				GUI.color = Color.white;
 
 				if (_repo.LastOperationSuccess)
 				{
-					GUI.Label(updatingLabelRect, (_repo.CancellationPending ? "Cancelling" : "Updating") + GUIUtility.GetLoadingDots(), EditorStyles.miniLabel);
-				}
+					if(_hasLocalChanges)
+					{
+						updatingLabelRect.y += 4;
+						GUI.Label(updatingLabelRect, "Local changes\ndetected!", EditorStyles.miniBoldLabel);
+					}
+					else
+					{
+						GUI.Label(updatingLabelRect, (_repo.CancellationPending ? "Cancelling" : "Updating") + GUIUtility.GetLoadingDots(), EditorStyles.miniLabel);
+					}
+				}			
 				else
 				{
 					GUI.Label(updatingLabelRect, "Failure", EditorStyles.miniLabel);
 				}
 
-				GUI.Label(progressMessageRect, lastProgress.Message, EditorStyles.miniLabel);
+				if(_hasLocalChanges)
+				{
+					Rect pushChangesRect = progressMessageRect;
+					pushChangesRect.y -= 5;
+					pushChangesRect.x = progressMessageRect.x + progressMessageRect.width - 55;
+					pushChangesRect.width = 50;
+					pushChangesRect.height = 15;
 
+					Rect deleteChangesRect = pushChangesRect;
+					deleteChangesRect.x -= 50;
+
+					if (GUI.Button(deleteChangesRect, "Remove", EditorStyles.miniButton))
+					{
+						if (EditorUtility.DisplayDialog("Confirm local changes removal", "This will permenantly delete any local changes and can not be reversed.", "Remove", "Cancel"))
+						{
+							//TODO: need to update manager window so it can rebuild asset database.
+							OnCopyFinished(CopyRepository());
+						}
+					}
+
+					if (GUI.Button(pushChangesRect, "Resolve", EditorStyles.miniButton))
+					{
+						int choice = EditorUtility.DisplayDialogComplex("Resolve local changes", "Please choose what to do with the local changes.", "Commit and Push",  "Cancel", "Open Git Client");
+						switch(choice)
+						{
+							case 0:
+							{
+									Debug.Log("Chose Commit and Push");
+								break;
+							}
+							case 1:
+							{
+									Debug.Log("Chose Cancel");						
+									break;
+							}
+							case 2:
+							{
+									Debug.Log("Chose Open Git Client");
+									break;
+							}
+						}
+					}
+				}
+				else
+				{
+					GUI.Label(progressMessageRect, lastProgress.Message, EditorStyles.miniLabel);
+				}
 
 				if (_repo.LastOperationSuccess)
 				{
@@ -211,6 +279,11 @@ namespace GitRepositoryManager
 					{
 						_repo.CancelUpdate();
 					};*/
+
+					if(_hasLocalChanges)
+					{
+						DrawUpdateButton(buttonRect);
+					}
 				}
 				else
 				{
@@ -222,25 +295,13 @@ namespace GitRepositoryManager
 			}
 			else
 			{
-				if (GUI.Button(buttonRect, "Update", EditorStyles.miniButton))
-				{
-					if(HasLocalChanges())
-					{
-						if (EditorUtility.DisplayDialog("Local Changes Detected", DependencyInfo.Name + " has local changes. Updating will permenantly delete them. Continue?", "Yes", "No"))
-						{
-							UpdateRepository();
-						}
-					}
-					else
-					{
-						UpdateRepository();
-					}
-				};
+				DrawUpdateButton(buttonRect);
 			}
 
 			if (!_repo.InProgress && GUI.Button(removeButtonRect, "x", EditorStyles.miniButton))
 			{
-				if (EditorUtility.DisplayDialog("Remove " + DependencyInfo.Name + "?", "\nThis will remove the repository from the project and Dependencies.json\n\nThis can not be undone", "Yes", "Cancel"))
+				if (EditorUtility.DisplayDialog("Remove " + DependencyInfo.Name + "?", "\nThis will remove the repository from the project.\n" +
+					((_hasLocalChanges)?"\nAll local changes will be discarded.\n":"") + "\nThis can not be undone.", "Yes", "Cancel"))
 				{
 					OnRemovalRequested(DependencyInfo.Name, DependencyInfo.Url, RepositoryPath(), CopyPath(_repositoryCopyRoot));
 				}
@@ -249,6 +310,24 @@ namespace GitRepositoryManager
 			GUIStyle labelStyle = new GUIStyle(EditorStyles.label);
 			labelStyle.richText = true;
 			GUI.Label(labelRect, DependencyInfo.Name + "  <b><size=9>" + /*(String.IsNullOrEmpty(DependencyInfo.Branch) ? (DependencyInfo.Tag + " (tag)") :*/ DependencyInfo.Branch/*)*/ + "</size></b>", labelStyle);
+		}
+
+		private void DrawUpdateButton(Rect rect)
+		{
+			if (GUI.Button(rect, "Update", EditorStyles.miniButton))
+			{
+				if (HasLocalChanges())
+				{
+					if (EditorUtility.DisplayDialog("Local Changes Detected", DependencyInfo.Name + " has local changes. Updating will permenantly delete them. Continue?", "Yes", "No"))
+					{
+						UpdateRepository();
+					}
+				}
+				else
+				{
+					UpdateRepository();
+				}
+			};
 		}
 
 		public bool Busy()
@@ -268,7 +347,10 @@ namespace GitRepositoryManager
 
 		public List<string> CopyRepository()
 		{
-			return _repo.Copy();
+			List<string> straysToBeDeleted;
+			List<string> coppied = _repo.Copy(out straysToBeDeleted);
+			OnDeleteAssetsRequested(straysToBeDeleted);
+			return coppied;
 		}
 	}
 }

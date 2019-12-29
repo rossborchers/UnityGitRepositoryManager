@@ -53,7 +53,6 @@ namespace GitRepositoryManager
 				}
 			}
 		}
-
 		public static int TotalInitialized
 		{
 			get
@@ -139,8 +138,9 @@ namespace GitRepositoryManager
 			return true;
 		}
 
-		public List<string> Copy()
+		public List<string> Copy(out List<string> straysToBeDeleted)
 		{
+			straysToBeDeleted = new List<string>();
 			string localTarget = Path.Combine(_state.LocalDestination, _state.SubFolder);
 			string localDestination = _state.CopyDestination; //Path.Combine(_state.CopyDestination, _state.SubFolder);
 			if (!Directory.Exists(localTarget))
@@ -148,10 +148,11 @@ namespace GitRepositoryManager
 				return new List<string>();
 			}
 
-			return DirectoryCopy(localTarget, localDestination, new string[] { ".git" });
+			return DirectoryCopy(localTarget, localDestination, new string[] { ".git" }, ref straysToBeDeleted);
 
 			// Modified from https://docs.microsoft.com/en-us/dotnet/standard/io/how-to-copy-directories?redirectedfrom=MSDN
-			List<string> DirectoryCopy(string sourceDirName, string destDirName, string[] foldersToIgnore)
+			// Main change is adding support for returning strays (files that exist in the destination that were not coppied)
+			List<string> DirectoryCopy(string sourceDirName, string destDirName, string[] foldersToIgnore, ref List<string> strays)
 			{
 				List<string> modifiedFiles = new List<string>();
 
@@ -165,6 +166,8 @@ namespace GitRepositoryManager
 						+ sourceDirName);
 				}
 
+				DirectoryInfo destDir = new DirectoryInfo(destDirName);
+
 				DirectoryInfo[] dirs = dir.GetDirectories();
 
 				// If the destination directory doesn't exist, create it.
@@ -173,11 +176,31 @@ namespace GitRepositoryManager
 					Directory.CreateDirectory(destDirName);
 				}
 
+				//Get all destination directories so we can check them off the list and end up with only stray ones (ones that do not exist in the source directory)
+				//These will then be used to find all the stray files in the stray directories.
+				List<DirectoryInfo> potentialStrayDesinationDirectories = new List<DirectoryInfo>();
+				potentialStrayDesinationDirectories = new List<DirectoryInfo>(destDir.GetDirectories());
+
+				List<FileInfo> potentialStrays = new List<FileInfo>();
+				if (destDir.Exists)
+				{
+					potentialStrays = new List<FileInfo>(destDir.GetFiles());
+				}
+
 				// Get the files in the directory and copy them to the new location.
 				FileInfo[] files = dir.GetFiles();
 				foreach (FileInfo file in files)
 				{
 					string temppath = Path.Combine(destDirName, file.Name);
+
+					//Remove potential strays when they match a new file to be coppied
+					for(int i = 0; i < potentialStrays.Count; i++)
+					{
+						if(potentialStrays[i].FullName == temppath)
+						{
+							potentialStrays.RemoveAt(i);
+						}
+					}
 
 					if (File.Exists(temppath))
 					{
@@ -193,15 +216,34 @@ namespace GitRepositoryManager
 				{
 					if(!foldersToIgnore.Contains(subdir.Name))
 					{
+						for (int i = 0; i < potentialStrayDesinationDirectories.Count; i++)
+						{
+							if(potentialStrayDesinationDirectories[i].FullName == subdir.FullName)
+							{
+								potentialStrayDesinationDirectories.RemoveAt(i);
+							}
+						}
+
 						string temppath = Path.Combine(destDirName, subdir.Name);
-						modifiedFiles.AddRange(DirectoryCopy(subdir.FullName, temppath, foldersToIgnore));
+						modifiedFiles.AddRange(DirectoryCopy(subdir.FullName, temppath, foldersToIgnore, ref strays));
 					}
+				}
+
+				//At this point any remaining directories are totally stray. All files inside the directories themselves need to be deleted.
+				foreach(DirectoryInfo strayDir in potentialStrayDesinationDirectories)
+				{
+					FileInfo[] strayFiles = strayDir.GetFiles("*", SearchOption.AllDirectories);
+					potentialStrays.AddRange(strayFiles);
+				}
+
+				foreach(FileInfo info in potentialStrays)
+				{
+					strays.Add(info.FullName);
 				}
 
 				return modifiedFiles;
 			}
 		}
-
 		public void CancelUpdate()
 		{
 			if(_inProgress) _cancellationPending = true;

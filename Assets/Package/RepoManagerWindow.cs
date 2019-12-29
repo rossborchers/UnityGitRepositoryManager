@@ -103,11 +103,87 @@ namespace GitRepositoryManager
 				if (_repoPanels.FindAll(p => dependency.Url == p.DependencyInfo.Url).Count == 0)
 				{
 					RepoPanel panel = new RepoPanel(_repoPath, dependency, GetPlatformAuthentication());
-					panel.OnRemovalRequested += OnPanelRemovalRequested;	
+					panel.OnRemovalRequested += OnPanelRemovalRequested;
+					panel.OnDeleteAssetsRequested += DeleteAssets;
+					panel.OnCopyFinished += UpdateAssetDatabaseForNewAssets;
 					_repoPanels.Add(panel);
 				}
 			}
 			Repaint();
+		}
+
+		//This will be called after a copy where the files were found in the directories explored by the copy, but never replaced. 
+		//This means they are local only strays that should be removed.
+		private void DeleteAssets(List<string> toDelete)
+		{
+			for (int i = 0; i < toDelete.Count; i++)
+			{
+				string extension = Path.GetExtension(toDelete[i]);
+				if (extension == ".meta")
+				{
+					//dont delete meta files directly.
+					continue;
+				}
+
+				string assetDBPath = GetAssetDatabasePathFromFullPath(toDelete[i]);
+
+				EditorUtility.DisplayProgressBar("Cleaning Repositories", "Removing stray files. Please wait a moment" + GUIUtility.GetLoadingDots(), ((float)i) / toDelete.Count);
+				AssetDatabase.DeleteAsset(assetDBPath);
+				Debug.Log("Deleting" + assetDBPath);
+
+				string deleteDirectory = Path.GetDirectoryName(toDelete[i]);
+				if (Directory.GetFiles(deleteDirectory).Length == 0 && Directory.GetDirectories(deleteDirectory).Length == 0)
+				{
+					Directory.Delete(deleteDirectory);
+					Debug.Log("Deleting directory " + deleteDirectory);
+					//Recurse upwards deleting any directories with no files or folders.
+					DirectoryInfo parentDir = Directory.GetParent(deleteDirectory);
+					while(Directory.GetFiles(parentDir.FullName).Length == 0 && Directory.GetDirectories(parentDir.FullName).Length == 0)
+					{
+						Directory.Delete(parentDir.FullName);
+						Debug.Log("Deleting directory " + parentDir.FullName);
+						parentDir = Directory.GetParent(parentDir.FullName);
+					}
+				}
+			}
+		}
+
+		private void UpdateAssetDatabaseForNewAssets(List<string> coppiedAssets)
+		{
+			//Update all assets individually to avoid a full editor re-import
+			for (int i = 0; i < coppiedAssets.Count; i++)
+			{
+				string extension = Path.GetExtension(coppiedAssets[i]);
+				if (extension == ".meta")
+				{
+					//dont import meta files directly.
+					continue;
+				}
+
+				string assetDBPath = GetAssetDatabasePathFromFullPath(coppiedAssets[i]);
+
+				EditorUtility.DisplayProgressBar("Importing Repositories", "Importing repositories into project. Please wait a moment" + GUIUtility.GetLoadingDots(), ((float)i) / coppiedAssets.Count);
+				AssetDatabase.ImportAsset(assetDBPath, ImportAssetOptions.ForceSynchronousImport);
+			}
+			//snapshot folder and file state to compare against later!
+			foreach (RepoPanel panel in _repoPanels)
+			{
+				panel.TakeBaselineSnapshot();
+			}
+			EditorUtility.ClearProgressBar();
+		}
+
+		private string GetAssetDatabasePathFromFullPath(string fullPath)
+		{
+			string assetDBPath = fullPath.Replace(Application.dataPath, "");
+
+			if (Path.IsPathRooted(assetDBPath))
+			{
+				assetDBPath = assetDBPath.TrimStart(Path.DirectorySeparatorChar);
+				assetDBPath = assetDBPath.TrimStart(Path.AltDirectorySeparatorChar);
+			}
+
+			return Path.Combine("Assets", assetDBPath);
 		}
 
 		private void OnPanelRemovalRequested(string name, string url, string repoPath, string copyPath)
@@ -195,35 +271,7 @@ namespace GitRepositoryManager
 					coppiedAssets.AddRange(panel.CopyRepository());
 				}
 
-				//Update all assets individually to avoid a full editor re-import
-				for (int i = 0; i < coppiedAssets.Count; i++)
-				{
-					string extension = Path.GetExtension(coppiedAssets[i]);
-					if (extension == ".meta")
-					{
-						//dont import meta files directly.
-						continue;
-					}
-
-					string assetDBPath = coppiedAssets[i].Replace(Application.dataPath, "");
-
-					EditorUtility.DisplayProgressBar("Importing Repositories", "Importing repositories into project. Please wait a moment", ((float)i) / coppiedAssets.Count);
-
-					if (Path.IsPathRooted(assetDBPath))
-					{
-						assetDBPath = assetDBPath.TrimStart(Path.DirectorySeparatorChar);
-						assetDBPath = assetDBPath.TrimStart(Path.AltDirectorySeparatorChar);
-					}
-
-					assetDBPath = Path.Combine("Assets", assetDBPath);
-					AssetDatabase.ImportAsset(assetDBPath, ImportAssetOptions.ForceSynchronousImport);
-				}
-				//snapshot folder and file state to compare against later!
-				foreach (RepoPanel panel in _repoPanels)
-				{
-					panel.TakeBaselineSnapshot();
-				}
-				EditorUtility.ClearProgressBar();
+				UpdateAssetDatabaseForNewAssets(coppiedAssets);
 			}
 
 			if (repaint)
@@ -254,7 +302,7 @@ namespace GitRepositoryManager
 			cancelAllRect.height = 15;
 			cancelAllRect.x = labelRect.width - (70 * 2);
 
-			GUI.Label(labelRect, "Repositories (" + Repository.TotalInitialized + ")", EditorStyles.miniLabel);
+			GUI.Label(labelRect, "Repositories" /*(" + Repository.TotalInitialized + ")"*/, EditorStyles.miniLabel);
 
 			if (GUI.Button(updateAllRect, "Update All", EditorStyles.miniButton))
 			{
@@ -363,7 +411,7 @@ namespace GitRepositoryManager
 
 			if (!_tester.Testing)
 			{
-				if (GUI.Button(addButtonRect, _showAddDependencyMenu.target ? "Add" : "Add Repository"))
+				if (GUI.Button(addButtonRect, _showAddDependencyMenu.target ? "Add" : "Add Repository", EditorStyles.miniButton))
 				{
 					addDependencyFailureMessage = string.Empty;
 					_addTime = EditorApplication.timeSinceStartup;
@@ -445,7 +493,7 @@ namespace GitRepositoryManager
 
 			if (_showAddDependencyMenu.target)
 			{
-				if (GUI.Button(cancelButtonRect, "Cancel"))
+				if (GUI.Button(cancelButtonRect, "Cancel", EditorStyles.miniButton))
 				{
 					CloseAddMenu();
 				}
