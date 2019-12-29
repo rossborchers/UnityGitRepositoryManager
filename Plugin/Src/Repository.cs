@@ -34,7 +34,7 @@ namespace GitRepositoryManager
 				}
 			}
 
-			Repository newRepo = new Repository(credentials, url, localDestination, copyDestination, branch, tag);
+			Repository newRepo = new Repository(credentials, url, localDestination, copyDestination, subFolder, branch, tag);
 			_repos.Add(newRepo);
 			return newRepo;
 		}
@@ -48,7 +48,7 @@ namespace GitRepositoryManager
 					repo._state.CopyDestination == copyDestination &&
 					repo._state.LocalDestination == localDestination)
 				{
-
+					_repos[i].TryRemoveCopy();
 					_repos.RemoveAt(i);
 				}
 			}
@@ -76,7 +76,7 @@ namespace GitRepositoryManager
 		private RepoState _state;
 		private volatile bool _inProgress;
 		private volatile bool _cancellationPending;
-		private volatile bool _lastOperationSuccess;
+		private volatile bool _lastOperationSuccess = true;
 
 		public struct Progress
 		{
@@ -91,11 +91,10 @@ namespace GitRepositoryManager
 		}
 
 
-		//TODO: for some reason repositories are not comparing on Repository.Get() causing lots of new ones to spawn.
 		//TODO: using a get for the sub repo will not work as it does not use git authentication. Should rather check the path is valid after clone. If not remove path or find closest?
 		//TODO: fix import not working properly
 		//TODO: Allow us to push back to remote if in front. If merge conflicts open folder
-		//TODO: thats it probably
+		//TODO: check that the name is being used to create the folders in the unity project
 
 		private ConcurrentQueue<Progress> _progressQueue = new ConcurrentQueue<Progress>();
 
@@ -112,7 +111,10 @@ namespace GitRepositoryManager
 				Tag = tag
 			};
 
-			TryUpdate();
+			// Removed for now as unity recompiles on import, causing an infinate recompile, update repo, import asset, recompile etc.
+			// The aditional benefit we get for not updating automatically is we can make local changes with less worry about an update overwriting. 
+			// Although we should still check for changes before updating.
+			//TryUpdate();
 		}
 
 		public bool TryUpdate()
@@ -137,23 +139,23 @@ namespace GitRepositoryManager
 				return false;
 			}
 
-			Directory.Delete(Path.Combine(_state.CopyDestination, _state.SubFolder));
+			Directory.Delete(_state.CopyDestination, true);
 			return true;
 		}
 
 		public List<string> Copy()
 		{
 			string localTarget = Path.Combine(_state.LocalDestination, _state.SubFolder);
-			string localDestination = Path.Combine(_state.CopyDestination, _state.SubFolder);
+			string localDestination = _state.CopyDestination; //Path.Combine(_state.CopyDestination, _state.SubFolder);
 			if (!Directory.Exists(localTarget))
 			{
 				return new List<string>();
 			}
 
-			return DirectoryCopy(localTarget, localDestination, true, true, ".git");
+			return DirectoryCopy(localTarget, localDestination, new string[] { ".git" });
 
-			// https://docs.microsoft.com/en-us/dotnet/standard/io/how-to-copy-directories?redirectedfrom=MSDN
-			List<string> DirectoryCopy(string sourceDirName, string destDirName, bool copySubDirs, bool overwrite, params string[] foldersToIgnore)
+			// Modified from https://docs.microsoft.com/en-us/dotnet/standard/io/how-to-copy-directories?redirectedfrom=MSDN
+			List<string> DirectoryCopy(string sourceDirName, string destDirName, string[] foldersToIgnore)
 			{
 				List<string> modifiedFiles = new List<string>();
 
@@ -168,6 +170,7 @@ namespace GitRepositoryManager
 				}
 
 				DirectoryInfo[] dirs = dir.GetDirectories();
+
 				// If the destination directory doesn't exist, create it.
 				if (!Directory.Exists(destDirName))
 				{
@@ -185,20 +188,17 @@ namespace GitRepositoryManager
 						File.SetAttributes(temppath, FileAttributes.Normal);
 					}
 
-					file.CopyTo(temppath, overwrite);
+					file.CopyTo(temppath, true);
 					modifiedFiles.Add(temppath);
 				}
 
-				// If copying subdirectories, copy them and their contents to new location.
-				if (copySubDirs)
+				//Copy sub directories
+				foreach (DirectoryInfo subdir in dirs)
 				{
-					foreach (DirectoryInfo subdir in dirs)
+					if(!foldersToIgnore.Contains(subdir.Name))
 					{
-						if(!foldersToIgnore.Contains(subdir.Name))
-						{
-							string temppath = Path.Combine(destDirName, subdir.Name);
-							modifiedFiles.AddRange(DirectoryCopy(subdir.FullName, temppath, copySubDirs, overwrite, foldersToIgnore));
-						}
+						string temppath = Path.Combine(destDirName, subdir.Name);
+						modifiedFiles.AddRange(DirectoryCopy(subdir.FullName, temppath, foldersToIgnore));
 					}
 				}
 

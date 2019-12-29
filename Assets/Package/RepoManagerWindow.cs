@@ -121,6 +121,9 @@ public class RepoManagerWindow : EditorWindow
 			}
 		}
 
+		//TODO: if we could referesh a folder only that would be nice. cant reimport assets that dont exists.
+		AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+
 		UpdateDependencies(_dependencies.Dependencies);
 	}
 
@@ -194,10 +197,25 @@ public class RepoManagerWindow : EditorWindow
 			//Update all assets individually to avoid a full editor re-import
 			for(int i = 0; i < coppiedAssets.Count; i++)
 			{
+				string extension = Path.GetExtension(coppiedAssets[i]);
+				if (extension == ".meta")
+				{
+					//dont import meta files directly.
+					continue;
+				}
+
 				string assetDBPath = coppiedAssets[i].Replace(Application.dataPath, "");
 
 				EditorUtility.DisplayProgressBar("Importing Repositories", "Importing repositories into project. Please wait a moment", i / coppiedAssets.Count);
-				AssetDatabase.ImportAsset(Path.Combine("Assets", assetDBPath), ImportAssetOptions.ForceSynchronousImport);
+
+				if (Path.IsPathRooted(assetDBPath))
+				{
+					assetDBPath = assetDBPath.TrimStart(Path.DirectorySeparatorChar);
+					assetDBPath = assetDBPath.TrimStart(Path.AltDirectorySeparatorChar);
+				}
+
+				assetDBPath = Path.Combine("Assets", assetDBPath);
+				AssetDatabase.ImportAsset(assetDBPath, ImportAssetOptions.ForceSynchronousImport);
 			}
 			EditorUtility.ClearProgressBar();
 		}
@@ -268,12 +286,20 @@ public class RepoManagerWindow : EditorWindow
 
 		if (EditorGUILayout.BeginFadeGroup(_showAddDependencyMenu.faded))
 		{
-			_potentialNewDependency.Name = EditorGUILayout.TextField("Name", _potentialNewDependency.Name);
+			
 			_potentialNewDependency.Url = EditorGUILayout.TextField("Url",  _potentialNewDependency.Url);
 
+			//TODO: For now tags are not exposed. When we do expose them we may have to have both branch and tag as git expects a branch in lots of places 
+			//Unless we can get branch from tag but not sure its worth the effort
+			_potentialNewDependency.Branch = EditorGUILayout.TextField("Branch", _potentialNewDependency.Branch);
+			//_potentialNewDependency.Tag = null;
+
+			EditorGUILayout.Space();
+
+			_potentialNewDependency.Name = EditorGUILayout.TextField("Name", _potentialNewDependency.Name);
 			_potentialNewDependency.SubFolder = EditorGUILayout.TextField("Subfolder", _potentialNewDependency.SubFolder);
 
-			GUILayout.BeginHorizontal();
+			/*GUILayout.BeginHorizontal();
 			selectedFilterIndex = EditorGUILayout.Popup(selectedFilterIndex, new string[] { "Branch", "Tag" }, GUILayout.Width(146));
 
 			if (selectedFilterIndex == 0)
@@ -288,7 +314,11 @@ public class RepoManagerWindow : EditorWindow
 				_potentialNewDependency.Tag = GUILayout.TextField(_potentialNewDependency.Tag);
 				_potentialNewDependency.Branch = null;
 			}
-			GUILayout.EndHorizontal();
+			GUILayout.EndHorizontal();*/
+
+		
+
+
 		}
 		else
 		{
@@ -321,7 +351,7 @@ public class RepoManagerWindow : EditorWindow
 					//simple validation of fields
 					bool validationSuccess = true;
 			
-					if (String.IsNullOrEmpty(_potentialNewDependency.Branch) && String.IsNullOrEmpty(_potentialNewDependency.Tag))
+					if (String.IsNullOrEmpty(_potentialNewDependency.Branch)/* && String.IsNullOrEmpty(_potentialNewDependency.Tag)*/)
 					{
 						addDependencyFailureMessage = "Either a valid branch or tag must be specified";
 						validationSuccess = false;

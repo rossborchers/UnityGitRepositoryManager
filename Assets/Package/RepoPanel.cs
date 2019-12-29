@@ -74,6 +74,9 @@ public class RepoPanel
 			Debug.LogError("Path is invalid" + folders + ". Undefined behaviour may result when trying to update repository");
 		}
 
+		//We keep repositories on seperate branches seperate as we want to be able to copy back working changes with the knowledge that we are on the correct checkout.
+		folders = Path.Combine(folders, DependencyInfo.Branch);
+
 		return Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UnityGitRepositoryCache"), folders);
 	}
 
@@ -186,7 +189,7 @@ public class RepoPanel
 
 		GUIStyle labelStyle = new GUIStyle(EditorStyles.label);
 		labelStyle.richText = true;
-		GUI.Label(labelRect, DependencyInfo.Name + "  <b><size=9>" + (String.IsNullOrEmpty(DependencyInfo.Branch) ? (DependencyInfo.Tag + " (tag)") : DependencyInfo.Branch) + "</size></b>", labelStyle);
+		GUI.Label(labelRect, DependencyInfo.Name + "  <b><size=9>" + /*(String.IsNullOrEmpty(DependencyInfo.Branch) ? (DependencyInfo.Tag + " (tag)") :*/ DependencyInfo.Branch/*)*/ + "</size></b>", labelStyle);
 	}
 
 	public bool Busy()
