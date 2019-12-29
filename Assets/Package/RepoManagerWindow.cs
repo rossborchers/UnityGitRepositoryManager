@@ -22,6 +22,7 @@ public class RepoManagerWindow : EditorWindow
 	private string _rootDependenciesFile;
 	private DependencyInfo _dependencies;
 	private Dependency _potentialNewDependency = new Dependency();
+	private int selectedFilterIndex;
 
 	private AnimBool _showAddDependencyMenu;
 
@@ -35,10 +36,25 @@ public class RepoManagerWindow : EditorWindow
 	private bool showWarningMessage;
 	private bool lastFrameWasWaitingToShowWarning;
 
+	private bool _reposWereBusy;
+	private bool _reposBusy;
+
 	[MenuItem("Window/Repository Manager", priority = 1500)]
 	static void Init()
 	{
-		_window = (RepoManagerWindow)GetWindow(typeof(RepoManagerWindow));
+		//Find other windows to dock to by default.
+		List<Type> types = new List<Type>();
+		EditorWindow[] allWindows = Resources.FindObjectsOfTypeAll<EditorWindow>();
+		foreach(EditorWindow window in allWindows)
+		{
+			//Can see the project view still in most configurations, and the scene tree is shown vertically. alternatives could be project view or inspector.
+			if (window.GetType().Name == "SceneHierarchyWindow") 
+			{
+				types.Add(window.GetType());
+			}
+		}
+
+		_window = (RepoManagerWindow)GetWindow<RepoManagerWindow>(types.ToArray());
 		_window.titleContent = new GUIContent("Repository Manager");
 		_window.Show();
 	}
@@ -58,11 +74,12 @@ public class RepoManagerWindow : EditorWindow
 		if(updatedDependencies != null)
 		{
 			//Remove no longer existing
-			foreach (var dep in _dependencies.Dependencies)
+			for(int i = _dependencies.Dependencies.Count-1; i >= 0; i--)
 			{
+				var dep = _dependencies.Dependencies[i];
 				if (updatedDependencies.FindAll(d => d.Url == dep.Url).Count <= 0)
 				{
-					_dependencies.Dependencies.Remove(dep);
+					_dependencies.Dependencies.RemoveAt(i);
 				}
 			}
 
@@ -85,11 +102,26 @@ public class RepoManagerWindow : EditorWindow
 		{
 			if (_repoPanels.FindAll(p => dependency.Url == p.DependencyInfo.Url).Count == 0)
 			{
-				_repoPanels.Add(new RepoPanel(dependency));
+				RepoPanel panel = new RepoPanel(_repoPath, dependency, GetPlatformAuthentication());
+				panel.OnRemovalRequested += OnPanelRemovalRequested;
+				_repoPanels.Add(panel);
+			}
+		}
+		Repaint();
+	}
+
+	private void OnPanelRemovalRequested(string name, string url, string repoPath, string copyPath)
+	{
+		for (int i = 0; i < _dependencies.Dependencies.Count; i++)
+		{
+			if (_dependencies.Dependencies[i].Name == name && _dependencies.Dependencies[i].Url == url)
+			{
+				_dependencies.Dependencies.RemoveAt(i);
+				Repository.Remove(url, repoPath, copyPath);
 			}
 		}
 
-		Repaint();
+		UpdateDependencies(_dependencies.Dependencies);
 	}
 
 	private void OnFocus()
@@ -135,18 +167,47 @@ public class RepoManagerWindow : EditorWindow
 			lastFrameWasWaitingToShowWarning = false;
 		}
 
-		foreach(RepoPanel panel in _repoPanels)
+		_reposBusy = false;
+		foreach (RepoPanel panel in _repoPanels)
 		{
 			if(panel.Update())
 			{
 				repaint = true;
 			}
+
+			if (panel.Busy())
+			{
+				_reposBusy = true;
+			}
 		}
 
-		if(repaint)
+		if(_reposWereBusy && !_reposBusy)
+		{
+			List<string> coppiedAssets = new List<string>();
+
+			//Repos just finished updating. Time to copy.
+			foreach (RepoPanel panel in _repoPanels)
+			{
+				coppiedAssets.AddRange(panel.CopyRepository());
+			}
+
+			//Update all assets individually to avoid a full editor re-import
+			for(int i = 0; i < coppiedAssets.Count; i++)
+			{
+				string assetDBPath = coppiedAssets[i].Replace(Application.dataPath, "");
+
+				EditorUtility.DisplayProgressBar("Importing Repositories", "Importing repositories into project. Please wait a moment", i / coppiedAssets.Count);
+				AssetDatabase.ImportAsset(Path.Combine("Assets", assetDBPath), ImportAssetOptions.ForceSynchronousImport);
+			}
+			EditorUtility.ClearProgressBar();
+		}
+
+		if (repaint)
 		{
 			Repaint();
 		}
+
+		_reposWereBusy = _reposBusy;
 	}
 
 	private ICredentialManager GetPlatformAuthentication()
@@ -156,14 +217,51 @@ public class RepoManagerWindow : EditorWindow
 
 	private void OnGUI()
 	{
-		foreach(RepoPanel panel in _repoPanels)
+		Rect labelRect = EditorGUILayout.GetControlRect();
+		labelRect.y += labelRect.height / 2f;
+
+		Rect updateAllRect = labelRect;
+		updateAllRect.width = 70;
+		updateAllRect.height = 15;
+		updateAllRect.x = labelRect.width - 70;
+
+		Rect cancelAllRect = labelRect;
+		cancelAllRect.width = 70;
+		cancelAllRect.height = 15;
+		cancelAllRect.x = labelRect.width - (70 * 2);
+
+		GUI.Label(labelRect, "Repositories (" + Repository.TotalInitialized + ")", EditorStyles.miniLabel);
+
+		if (GUI.Button(updateAllRect, "Update All", EditorStyles.miniButton))
 		{
-			Rect repoRect = EditorGUILayout.GetControlRect();
-			panel.OnDrawGUI(repoRect);
+			for (int i = 0; i < _repoPanels.Count; i++)
+			{
+				_repoPanels[i].UpdateRepository();
+			}
+		}
+		
+		if(_reposBusy)
+		{
+			if (GUI.Button(cancelAllRect, "Cancel All", EditorStyles.miniButton))
+			{
+				for (int i = 0; i < _repoPanels.Count; i++)
+				{
+					_repoPanels[i].CancelUpdateRepository();
+				}
+			}
 		}
 
+		EditorGUIUtility.DrawLine();
+
+		for(int i = 0; i < _repoPanels.Count; i++)
+		{
+			_repoPanels[i].OnDrawGUI(i);
+		}
+
+		EditorGUIUtility.DrawLine();
+
 		//This is a dumb but kidna fancy way of adding new dependencies.
-		if(_tester.Testing)
+		if (_tester.Testing)
 		{
 			GUI.enabled = false;
 		}
@@ -171,9 +269,26 @@ public class RepoManagerWindow : EditorWindow
 		if (EditorGUILayout.BeginFadeGroup(_showAddDependencyMenu.faded))
 		{
 			_potentialNewDependency.Name = EditorGUILayout.TextField("Name", _potentialNewDependency.Name);
-			_potentialNewDependency.Url = EditorGUILayout.TextField("Url", _potentialNewDependency.Url);
-			_potentialNewDependency.SubDirectory = EditorGUILayout.TextField("SubDirectory", _potentialNewDependency.SubDirectory);
-			_potentialNewDependency.Branch = EditorGUILayout.TextField("Branch", _potentialNewDependency.Branch);
+			_potentialNewDependency.Url = EditorGUILayout.TextField("Url",  _potentialNewDependency.Url);
+
+			_potentialNewDependency.SubFolder = EditorGUILayout.TextField("Subfolder", _potentialNewDependency.SubFolder);
+
+			GUILayout.BeginHorizontal();
+			selectedFilterIndex = EditorGUILayout.Popup(selectedFilterIndex, new string[] { "Branch", "Tag" }, GUILayout.Width(146));
+
+			if (selectedFilterIndex == 0)
+			{
+				if (_potentialNewDependency.Branch == null) _potentialNewDependency.Branch = "master";
+				_potentialNewDependency.Branch = GUILayout.TextField(_potentialNewDependency.Branch);
+				_potentialNewDependency.Tag = null;
+			}
+			else
+			{
+				if (_potentialNewDependency.Tag == null) _potentialNewDependency.Tag = "";
+				_potentialNewDependency.Tag = GUILayout.TextField(_potentialNewDependency.Tag);
+				_potentialNewDependency.Branch = null;
+			}
+			GUILayout.EndHorizontal();
 		}
 		else
 		{
@@ -192,7 +307,7 @@ public class RepoManagerWindow : EditorWindow
 
 		if (!_tester.Testing)
 		{
-			if (GUI.Button(addButtonRect, _showAddDependencyMenu.target ? "Add" : "Add Dependency"))
+			if (GUI.Button(addButtonRect, _showAddDependencyMenu.target ? "Add" : "Add Repository"))
 			{
 				addDependencyFailureMessage = string.Empty;
 				_addTime = EditorApplication.timeSinceStartup;
@@ -203,28 +318,58 @@ public class RepoManagerWindow : EditorWindow
 				}
 				else
 				{
-					_tester.Test(_potentialNewDependency.Url, GetPlatformAuthentication(), (success, message) =>
+					//simple validation of fields
+					bool validationSuccess = true;
+			
+					if (String.IsNullOrEmpty(_potentialNewDependency.Branch) && String.IsNullOrEmpty(_potentialNewDependency.Tag))
 					{
-						if (success)
+						addDependencyFailureMessage = "Either a valid branch or tag must be specified";
+						validationSuccess = false;
+					}
+
+					foreach (Dependency dep in _dependencies.Dependencies)
+					{
+						if (dep.Name.Trim().ToLower() == _potentialNewDependency.Name.Trim().ToLower())
 						{
-							_dependencies.Dependencies.Add(_potentialNewDependency);
-							UpdateDependencies(_dependencies.Dependencies);
-							CloseAddMenu();
+							addDependencyFailureMessage = "Name already exists.";
+							validationSuccess = false;
 						}
-						else
+						else if (dep.Url.Trim().ToLower() == _potentialNewDependency.Url.Trim().ToLower())
 						{
-							addDependencyFailureMessage = message;
+							addDependencyFailureMessage = "Repository already exists with the current url.\nExisting: " + dep.Name;
+							validationSuccess = false;
 						}
-					});
+					}
+
+					if (String.IsNullOrEmpty(_potentialNewDependency.Name))
+					{
+						addDependencyFailureMessage = "Name can not be empty.";
+						validationSuccess = false;
+					}
+
+					if (validationSuccess)
+					{
+						//actually connect to repository
+						_tester.Test(_potentialNewDependency.Url, _potentialNewDependency.Branch, _potentialNewDependency.SubFolder, GetPlatformAuthentication(), (success, message) =>
+						{
+							if (success)
+							{
+								_dependencies.Dependencies.Add(_potentialNewDependency);
+								UpdateDependencies(_dependencies.Dependencies);
+								CloseAddMenu();
+							}
+							else
+							{
+								addDependencyFailureMessage = message;
+							}
+						});
+					}
 				}
 			}
 		}
 		else
 		{
-			string dots = string.Empty;
-			int dotCount = Mathf.FloorToInt((float)(EditorApplication.timeSinceStartup % 3))+1;
-			for (int i = 0; i < dotCount; i++) { dots += "."; }
-			GUI.Label(addButtonRect, "Testing connection" + dots + "\n" + _potentialNewDependency.Url, EditorStyles.boldLabel);
+			GUI.Label(addButtonRect, "Testing connection" + EditorGUIUtility.GetLoadingDots() + "\n" + _potentialNewDependency.Url, EditorStyles.boldLabel);
 		}
 
 		GUI.enabled = true;
@@ -252,6 +397,7 @@ public class RepoManagerWindow : EditorWindow
 
 	private void CloseAddMenu()
 	{
+		selectedFilterIndex = 0;
 		addDependencyFailureMessage = string.Empty;
 		_showAddDependencyMenu.target = false;
 		_potentialNewDependency = new Dependency();

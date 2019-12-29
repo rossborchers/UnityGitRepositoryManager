@@ -1,16 +1,3 @@
 {
-    "Dependencies": [
-        {
-            "Name": "UnityGitRepositoryManager",
-            "Url": "https://github.com/rossborchers/UnityGitRepositoryManager",
-            "SubDirectory": "",
-            "Branch": "master"
-        },
-        {
-            "Name": "CMS",
-            "Url": "https://github.com/RenderHeads/lib-CMS",
-            "SubDirectory": "",
-            "Branch": "master"
-        }
-    ]
+    "Dependencies": []
 }

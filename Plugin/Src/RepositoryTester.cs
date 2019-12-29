@@ -4,9 +4,10 @@ using LibGit2Sharp;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.NetworkInformation;
-using System.Text;
 using System.Threading;
 
 namespace GitRepositoryManager
@@ -30,11 +31,13 @@ namespace GitRepositoryManager
 		private class TestState
 		{
 			public string Url;
+			public string Branch;
+			public string SubFolder;
 			public ICredentialManager CredentialManager;
 			public Action<bool, string> OnComplete;
 		}
 
-		public void Test(string url, ICredentialManager credentialManager, Action<bool, string> onComplete)
+		public void Test(string url, string branch, string subFolder, ICredentialManager credentialManager, Action<bool, string> onComplete)
 		{
 			if(Testing)
 			{
@@ -42,7 +45,7 @@ namespace GitRepositoryManager
 			}
 
 			Testing = true;
-			ThreadPool.QueueUserWorkItem(TestRepositoryValid, new TestState { Url = url, CredentialManager = credentialManager, OnComplete = onComplete });
+			ThreadPool.QueueUserWorkItem(TestRepositoryValid, new TestState { Url = url, Branch = branch, SubFolder = subFolder, CredentialManager = credentialManager, OnComplete = onComplete });
 		}
 
 		private void TestRepositoryValid(object state)
@@ -94,7 +97,35 @@ namespace GitRepositoryManager
 					bool validRemote = references.Count() > 0;
 					if (validRemote)
 					{
-						_callbacks.Enqueue(new CallbackData() { Callback = testState.OnComplete, Data = new Tuple<bool, string>(true, "Success. The url points to a valid git repository.") });
+						//Test sub folder is valid
+						bool validSubFolder = true;
+						Uri url = new Uri(Path.Combine(Path.Combine(Path.Combine(testState.Url, "tree"), testState.Branch), testState.SubFolder));
+						if (!string.IsNullOrEmpty(testState.SubFolder))
+						{
+							string pingurl = string.Format("{0}", url.Host);
+							try
+							{ 
+								HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
+								HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+								if(!(response.StatusCode  == HttpStatusCode.OK || response.StatusCode == HttpStatusCode.Accepted))
+								{
+									validSubFolder = false;
+								}
+							}
+							catch
+							{
+								validSubFolder = false;
+							}
+						}
+
+						if(validSubFolder)
+						{
+							_callbacks.Enqueue(new CallbackData() { Callback = testState.OnComplete, Data = new Tuple<bool, string>(true, "Success. The url points to a valid git repository.") });
+						}
+						else
+						{
+							_callbacks.Enqueue(new CallbackData() { Callback = testState.OnComplete, Data = new Tuple<bool, string>(false, "Failed to find subfolder in repository. \nLooking for '" + url.ToString() + "'") });
+						}
 					}
 					else
 					{
