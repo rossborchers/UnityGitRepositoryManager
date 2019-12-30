@@ -1,7 +1,7 @@
 # UnityGitRepositoryManager
 
 A git "package" manager for Unity with a focus on ease of use and fast iteration. 
-Allows you to include repositories or subfolders of repositories from other projects in your unity project. 
+Allows you to include repositories or subfolders of repositories from other projects in your unity project, update and modify them.
 
 - Add and update repositories
 - Make modifications to repositories and copy changes back to local repo
