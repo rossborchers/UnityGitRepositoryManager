@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
+using System.Diagnostics;
 
 namespace GitRepositoryManager
 {
@@ -89,14 +90,7 @@ namespace GitRepositoryManager
 			public string Message;
 		}
 
-
-		//TODO: using a get for the sub repo will not work as it does not use git authentication. Should rather check the path is valid after clone. If not remove path or find closest?
-		//TODO: fix import not working properly
-		//TODO: Allow us to push back to remote if in front. If merge conflicts open folder
-		//TODO: check that the name is being used to create the folders in the unity project
-
 		private ConcurrentQueue<Progress> _progressQueue = new ConcurrentQueue<Progress>();
-
 
 		public Repository(ICredentialManager credentials, string url, string localDestination, string copyDestination, string subFolder, string branch = "master", string tag = "")
 		{
@@ -196,7 +190,7 @@ namespace GitRepositoryManager
 					//Remove potential strays when they match a new file to be coppied
 					for(int i = 0; i < potentialStrays.Count; i++)
 					{
-						if(potentialStrays[i].FullName == temppath)
+						if(potentialStrays[i].FullName.Replace('\\', '/') == temppath.Replace('\\', '/'))
 						{
 							potentialStrays.RemoveAt(i);
 						}
@@ -216,15 +210,15 @@ namespace GitRepositoryManager
 				{
 					if(!foldersToIgnore.Contains(subdir.Name))
 					{
+						string temppath = Path.Combine(destDirName, subdir.Name);
 						for (int i = 0; i < potentialStrayDesinationDirectories.Count; i++)
 						{
-							if(potentialStrayDesinationDirectories[i].FullName == subdir.FullName)
+							if(potentialStrayDesinationDirectories[i].FullName.Replace('\\', '/') == temppath.Replace('\\', '/'))
 							{
 								potentialStrayDesinationDirectories.RemoveAt(i);
 							}
 						}
 
-						string temppath = Path.Combine(destDirName, subdir.Name);
 						modifiedFiles.AddRange(DirectoryCopy(subdir.FullName, temppath, foldersToIgnore, ref strays));
 					}
 				}
@@ -242,6 +236,66 @@ namespace GitRepositoryManager
 				}
 
 				return modifiedFiles;
+			}
+		}
+
+
+		public void CopyBackChanges()
+		{
+			//Swapped from forward copy. Other logic can stay the same.
+			string localTarget = _state.CopyDestination;
+			string localDestination =  Path.Combine(_state.LocalDestination, _state.SubFolder);
+
+			if (!Directory.Exists(localTarget))
+			{
+				return;
+			}
+
+			DirectoryCopy(localTarget, localDestination);
+
+			// Modified from https://docs.microsoft.com/en-us/dotnet/standard/io/how-to-copy-directories?redirectedfrom=MSDN
+			void DirectoryCopy(string sourceDirName, string destDirName)
+			{
+				// Get the subdirectories for the specified directory.
+				DirectoryInfo dir = new DirectoryInfo(sourceDirName);
+
+				if (!dir.Exists)
+				{
+					throw new DirectoryNotFoundException(
+						"Source directory does not exist or could not be found: "
+						+ sourceDirName);
+				}
+
+				DirectoryInfo destDir = new DirectoryInfo(destDirName);
+
+				DirectoryInfo[] dirs = dir.GetDirectories();
+
+				// If the destination directory doesn't exist, create it.
+				if (!Directory.Exists(destDirName))
+				{
+					Directory.CreateDirectory(destDirName);
+				}
+
+				// Get the files in the directory and copy them to the new location.
+				FileInfo[] files = dir.GetFiles();
+				foreach (FileInfo file in files)
+				{
+					string temppath = Path.Combine(destDirName, file.Name);
+
+					if (File.Exists(temppath))
+					{
+						File.SetAttributes(temppath, FileAttributes.Normal);
+					}
+
+					file.CopyTo(temppath, true);
+				}
+
+				//Copy sub directories
+				foreach (DirectoryInfo subdir in dirs)
+				{		
+					string temppath = Path.Combine(destDirName, subdir.Name);
+					DirectoryCopy(subdir.FullName, temppath);	
+				}
 			}
 		}
 		public void CancelUpdate()
@@ -417,6 +471,17 @@ namespace GitRepositoryManager
 			//Once completed
 			_inProgress = false;
 			_cancellationPending = false;
+		}
+
+		public void OpenRepositoryDestination()
+		{
+			Process.Start(new ProcessStartInfo()
+			{
+				FileName = _state.LocalDestination,
+				UseShellExecute = true,
+				Verb = "open"
+			});
+			//Leave the process running. User should close it manually.
 		}
 	}
 }

@@ -1,6 +1,7 @@
 ﻿using GitRepositoryManager.CredentialManagers;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using UnityEditor;
 using UnityEditor.AnimatedValues;
@@ -36,8 +37,8 @@ namespace GitRepositoryManager
 		private bool showWarningMessage;
 		private bool lastFrameWasWaitingToShowWarning;
 
-		private bool _reposWereBusy;
-		private bool _reposBusy;
+		private HashSet<RepoPanel> _reposWereBusy = new HashSet<RepoPanel>();
+		private HashSet<RepoPanel> _reposBusy = new HashSet<RepoPanel>();
 
 		[MenuItem("Window/Repository Manager", priority = 1500)]
 		static void Init()
@@ -129,26 +130,34 @@ namespace GitRepositoryManager
 
 				EditorUtility.DisplayProgressBar("Cleaning Repositories", "Removing stray files. Please wait a moment" + GUIUtility.GetLoadingDots(), ((float)i) / toDelete.Count);
 				AssetDatabase.DeleteAsset(assetDBPath);
-				Debug.Log("Deleting" + assetDBPath);
+				//Debug.Log("Deleting" + assetDBPath);
 
-				string deleteDirectory = Path.GetDirectoryName(toDelete[i]);
+				string toDeleteLocal = toDelete[i];
+
+				//Delete asset does not happen straight away.		
+				//TODO: this is not recursing properly. File still exists.
+				string deleteDirectory = Path.GetDirectoryName(toDeleteLocal);
 				if (Directory.GetFiles(deleteDirectory).Length == 0 && Directory.GetDirectories(deleteDirectory).Length == 0)
 				{
 					Directory.Delete(deleteDirectory);
-					Debug.Log("Deleting directory " + deleteDirectory);
+					//Debug.Log("Deleting directory " + deleteDirectory);
 					//Recurse upwards deleting any directories with no files or folders.
 					DirectoryInfo parentDir = Directory.GetParent(deleteDirectory);
-					while(Directory.GetFiles(parentDir.FullName).Length == 0 && Directory.GetDirectories(parentDir.FullName).Length == 0)
+					int filesCount = Directory.GetFiles(parentDir.FullName).Length;
+					int directoryCount = Directory.GetDirectories(parentDir.FullName).Length;
+					while (directoryCount == 0 && filesCount == 0)
 					{
 						Directory.Delete(parentDir.FullName);
-						Debug.Log("Deleting directory " + parentDir.FullName);
+						//Debug.Log("Deleting directory " + parentDir.FullName);
 						parentDir = Directory.GetParent(parentDir.FullName);
+						//Debug.Log("Evaluating next directory " + parentDir.FullName);
 					}
 				}
+				
 			}
 		}
 
-		private void UpdateAssetDatabaseForNewAssets(List<string> coppiedAssets)
+		private void UpdateAssetDatabaseForNewAssets(List<string> coppiedAssets, params RepoPanel[] updatedRepos)
 		{
 			//Update all assets individually to avoid a full editor re-import
 			for (int i = 0; i < coppiedAssets.Count; i++)
@@ -165,16 +174,19 @@ namespace GitRepositoryManager
 				EditorUtility.DisplayProgressBar("Importing Repositories", "Importing repositories into project. Please wait a moment" + GUIUtility.GetLoadingDots(), ((float)i) / coppiedAssets.Count);
 				AssetDatabase.ImportAsset(assetDBPath, ImportAssetOptions.ForceSynchronousImport);
 			}
+
 			//snapshot folder and file state to compare against later!
-			foreach (RepoPanel panel in _repoPanels)
+			foreach (RepoPanel panel in updatedRepos)
 			{
 				panel.TakeBaselineSnapshot();
 			}
+
 			EditorUtility.ClearProgressBar();
 		}
 
 		private string GetAssetDatabasePathFromFullPath(string fullPath)
 		{
+			fullPath = fullPath.Replace('\\', '/');
 			string assetDBPath = fullPath.Replace(Application.dataPath, "");
 
 			if (Path.IsPathRooted(assetDBPath))
@@ -247,7 +259,7 @@ namespace GitRepositoryManager
 				lastFrameWasWaitingToShowWarning = false;
 			}
 
-			_reposBusy = false;
+			_reposBusy.Clear();
 			foreach (RepoPanel panel in _repoPanels)
 			{
 				if (panel.Update())
@@ -257,21 +269,28 @@ namespace GitRepositoryManager
 
 				if (panel.Busy())
 				{
-					_reposBusy = true;
+					_reposBusy.Add(panel);
 				}
 			}
 
-			if (_reposWereBusy && !_reposBusy)
-			{
-				List<string> coppiedAssets = new List<string>();
+			
+			List<string> coppiedAssets = new List<string>();
+			List<RepoPanel> updatedRepos = new List<RepoPanel>();
 
-				//Repos just finished updating. Time to copy.
-				foreach (RepoPanel panel in _repoPanels)
+			//Repos just finished updating. Time to copy.
+			foreach (RepoPanel panel in _repoPanels)
+			{
+				//check what repos just finished updating
+				if (_reposWereBusy.Contains(panel) && !_reposBusy.Contains(panel))
 				{
+					updatedRepos.Add(panel);
 					coppiedAssets.AddRange(panel.CopyRepository());
 				}
+			}
 
-				UpdateAssetDatabaseForNewAssets(coppiedAssets);
+			if(coppiedAssets.Count > 0)
+			{
+				UpdateAssetDatabaseForNewAssets(coppiedAssets, updatedRepos.ToArray());
 			}
 
 			if (repaint)
@@ -279,7 +298,7 @@ namespace GitRepositoryManager
 				Repaint();
 			}
 
-			_reposWereBusy = _reposBusy;
+			_reposWereBusy = new HashSet<RepoPanel>(_reposBusy);
 		}
 
 		private ICredentialManager GetPlatformAuthentication()
@@ -297,6 +316,11 @@ namespace GitRepositoryManager
 			updateAllRect.height = 15;
 			updateAllRect.x = labelRect.width - 70;
 
+			Rect openCacheRect = labelRect;
+			openCacheRect.width = 70;
+			openCacheRect.height = 15;
+			openCacheRect.x = labelRect.width - (70 * 2);
+
 			Rect cancelAllRect = labelRect;
 			cancelAllRect.width = 70;
 			cancelAllRect.height = 15;
@@ -304,7 +328,7 @@ namespace GitRepositoryManager
 
 			GUI.Label(labelRect, "Repositories" /*(" + Repository.TotalInitialized + ")"*/, EditorStyles.miniLabel);
 
-			if (GUI.Button(updateAllRect, "Update All", EditorStyles.miniButton))
+			if (GUI.Button(updateAllRect, new GUIContent("Update All", "Update all repositories. You will be asked before overwriting local changes."), EditorStyles.toolbarButton))
 			{
 				bool localChangesDetected = false;
 				for (int i = 0; i < _repoPanels.Count; i++)
@@ -318,11 +342,34 @@ namespace GitRepositoryManager
 
 				if(localChangesDetected)
 				{
-					if(EditorUtility.DisplayDialog("Local Changes Detected", "One or more repositories have local changes. Updating will wipe all local changes. Continue?", "Yes", "No"))
+					int choice = EditorUtility.DisplayDialogComplex("Local Changes Detected", "One or more repositories have local changes. Proceed with caution.", "Update and wipe all changes",  "Cancel", "Update only clean repositories");
+					switch(choice)
 					{
-						for (int i = 0; i < _repoPanels.Count; i++)
+						case 0:
 						{
-							_repoPanels[i].UpdateRepository();
+							//Update and wipe all.
+							for (int i = 0; i < _repoPanels.Count; i++)
+							{
+								_repoPanels[i].UpdateRepository();
+							}
+							break;
+						}
+						case 1:
+						{
+							//Do nothing on cancel.			
+							break;
+						}
+						case 2:
+						{
+							//Update only clean
+							for (int i = 0; i < _repoPanels.Count; i++)
+							{
+								if (!_repoPanels[i].HasLocalChanges())
+								{
+									_repoPanels[i].UpdateRepository();
+								}
+							}
+							break;
 						}
 					}
 				}
@@ -335,7 +382,17 @@ namespace GitRepositoryManager
 				}
 			}
 
-			if (_reposBusy)
+			if (GUI.Button(cancelAllRect, new GUIContent("Open Cache", "Open the cache folder root. All repositories for all projects are stored here."), EditorStyles.toolbarButton))
+			{
+				Process.Start(new ProcessStartInfo()
+				{
+					FileName = RepoPanel.CacheRoot,
+					UseShellExecute = true,
+					Verb = "open"
+				});
+			}
+
+			if (_reposBusy.Count > 0)
 			{
 				//TODO: Cancel not fully implemented due to complexities in libgit2sharp. Hiding for now.
 				/*if (GUI.Button(cancelAllRect, "Cancel All", EditorStyles.miniButton))

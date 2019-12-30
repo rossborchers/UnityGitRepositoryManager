@@ -102,7 +102,8 @@ namespace GitRepositoryManager
 						Uri url = new Uri(Path.Combine(Path.Combine(Path.Combine(testState.Url, "tree"), testState.Branch), testState.SubFolder));
 						if (!string.IsNullOrEmpty(testState.SubFolder))
 						{
-							string pingurl = string.Format("{0}", url.Host);
+							//TODO: using a get will not work with repositories that require authentication. as it does not use git authentication. Should rather check the path is valid after clone. If not remove path or find closest?
+							/*string pingurl = string.Format("{0}", url.Host);
 							try
 							{ 
 								HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
@@ -115,10 +116,13 @@ namespace GitRepositoryManager
 							catch
 							{
 								validSubFolder = false;
-							}
+							}*/
+
+							//TODO: right now there is no validation.
+							validSubFolder = true;
 						}
 
-						if(validSubFolder)
+						if (validSubFolder)
 						{
 							_callbacks.Enqueue(new CallbackData() { Callback = testState.OnComplete, Data = new Tuple<bool, string>(true, "Success. The url points to a valid git repository.") });
 						}

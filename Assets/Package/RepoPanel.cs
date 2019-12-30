@@ -17,12 +17,12 @@ namespace GitRepositoryManager
 			get;
 			private set;
 		}
-
+		
 		private ICredentialManager _credentialManager;
 		private string _repositoryCopyRoot;
 		private bool _repoWasInProgress;
 		public event Action<string, string, string, string> OnRemovalRequested = delegate { };
-		public event Action<List<string>> OnCopyFinished = delegate { };
+		public event Action<List<string>, RepoPanel[]> OnCopyFinished = delegate { };
 		public event Action<List<string>> OnDeleteAssetsRequested = delegate { };
 
 		//Note this updates the UI but its not serialized and should not be used for any buisiness logic.
@@ -48,6 +48,11 @@ namespace GitRepositoryManager
 		// https://stackoverflow.com/questions/3625658/creating-hash-for-folder
 		private string SnapshotCopyFolder(string path)
 		{
+			if(!Directory.Exists(path))
+			{
+				return "";
+			}
+
 			// assuming you want to include nested folders
 			var files = Directory.GetFiles(path, "*.*", SearchOption.AllDirectories)
 								 .OrderBy(p => p).ToList();
@@ -134,7 +139,15 @@ namespace GitRepositoryManager
 			//We keep repositories on seperate branches seperate as we want to be able to copy back working changes with the knowledge that we are on the correct checkout.
 			folders = Path.Combine(folders, DependencyInfo.Branch);
 
-			return Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UnityGitRepositoryCache"), folders);
+			return Path.Combine(CacheRoot, folders);
+		}
+
+		public static string CacheRoot
+		{
+			get
+			{
+				return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UnityGitRepositoryCache");
+			}
 		}
 
 		public string CopyPath(string root)
@@ -235,18 +248,19 @@ namespace GitRepositoryManager
 					Rect deleteChangesRect = pushChangesRect;
 					deleteChangesRect.x -= 50;
 
-					if (GUI.Button(deleteChangesRect, "Remove", EditorStyles.miniButton))
+					if (GUI.Button(deleteChangesRect, new GUIContent("Remove", "Remove all local changes"), EditorStyles.miniButton))
 					{
 						if (EditorUtility.DisplayDialog("Confirm local changes removal", "This will permenantly delete any local changes and can not be reversed.", "Remove", "Cancel"))
 						{
 							//TODO: need to update manager window so it can rebuild asset database.
-							OnCopyFinished(CopyRepository());
+							OnCopyFinished(CopyRepository(), new RepoPanel[] { this });
 						}
 					}
 
-					if (GUI.Button(pushChangesRect, "Resolve", EditorStyles.miniButton))
+					if (GUI.Button(pushChangesRect, new GUIContent("Copy", "This will copy the changes back to the local reposiory, clear the dirty flag, and open a window to allow you to resolve changes back to the remote.\n" +
+						"Caution: any uncommitted changes in the cache could be overridden."), EditorStyles.miniButton))
 					{
-						int choice = EditorUtility.DisplayDialogComplex("Resolve local changes", "Please choose what to do with the local changes.", "Commit and Push",  "Cancel", "Open Git Client");
+						/*int choice = EditorUtility.DisplayDialogComplex("Resolve local changes", "Please choose what to do with the local changes.", "Commit and Push",  "Cancel", "Open Git Client");
 						switch(choice)
 						{
 							case 0:
@@ -264,7 +278,12 @@ namespace GitRepositoryManager
 									Debug.Log("Chose Open Git Client");
 									break;
 							}
-						}
+						}*/
+						_repo.CopyBackChanges();
+
+						TakeBaselineSnapshot();
+
+						_repo.OpenRepositoryDestination();
 					}
 				}
 				else
@@ -298,7 +317,7 @@ namespace GitRepositoryManager
 				DrawUpdateButton(buttonRect);
 			}
 
-			if (!_repo.InProgress && GUI.Button(removeButtonRect, "x", EditorStyles.miniButton))
+			if (!_repo.InProgress && GUI.Button(removeButtonRect, new GUIContent("x", "Remove the repository from this project."), EditorStyles.miniButton))
 			{
 				if (EditorUtility.DisplayDialog("Remove " + DependencyInfo.Name + "?", "\nThis will remove the repository from the project.\n" +
 					((_hasLocalChanges)?"\nAll local changes will be discarded.\n":"") + "\nThis can not be undone.", "Yes", "Cancel"))
@@ -314,7 +333,7 @@ namespace GitRepositoryManager
 
 		private void DrawUpdateButton(Rect rect)
 		{
-			if (GUI.Button(rect, "Update", EditorStyles.miniButton))
+			if (GUI.Button(rect, new GUIContent("Update", "Pull or clone. Copy into project."), EditorStyles.miniButton))
 			{
 				if (HasLocalChanges())
 				{
