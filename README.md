@@ -63,7 +63,7 @@ I've heard people argue that when you need a subfolder what you need to do is sp
 Updating multiple repositories is slow, monoliths are bad. We need a way to update multiple repositories fast.
 The use case I've described does not satisfy the same use case as UPM or any other package managers I'm aware of. The intention is for this to be used in parallel with the Unity Package Manager. This is for in-development or project-oriented repositories, It allows for us to keep modular and atomic repositories that are reusable while maintaining the ease of use and mutability of a single project workflow. 
 
-_Packages should still be used for third party or projects no longer in active development!_
+_Packages should still be used for third party projects or projects no longer in active development!_
 
 # Technology
 
