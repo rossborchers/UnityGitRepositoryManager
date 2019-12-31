@@ -25,6 +25,7 @@ This is a tool for working on many repositories at once and pushing changes back
 
 - Download or clone this repository.
   - copy Assets/Package anywhere under your project's Assets folder.
+  - _if you want to contribute to the plugin development you will need to work directly in the cloned repository_
   
 ### Manual Self-Bootsrap Install
 
@@ -42,7 +43,8 @@ This is a tool for working on many repositories at once and pushing changes back
 
 # Rationale
 
-I've constantly run into the issue of decoupling into separate repositories slowing down development. But when we don't decouple we end up with unmaintainable and un-reusable monoliths. We need a way to quickly iterate on multiple repositories while maintaining their modularity. This is what the repo manager tries to solve. 
+I've constantly run into the issue of decoupling into separate repositories slowing down development. We have multiple repositories for a single project, it gets quite slow.
+But when we don't decouple we end up with unmaintainable and un-reusable monoliths. We need a way to quickly iterate on multiple repositories while maintaining their modularity. This is what the repo manager tries to solve. 
 
 #### Problems with package managers
 Package managers are in my experience geared for a read-only workflow, so they don't satisfy the same use case ([upm](https://docs.unity3d.com/Manual/upm-parts.html), [projeny](https://github.com/modesttree/projeny), [nuget](https://github.com/GlitchEnzo/NuGetForUnity)). I want it to be quick to update, have dependency management, but more importantly, be able to quickly __push changes__
@@ -59,7 +61,9 @@ I've heard people argue that when you need a subfolder what you need to do is sp
 
 ### In Summary
 
-The use case I've described does not satisfy the same use case as UPM or any other package managers I'm aware of. The intention is for this to be used in parallel with the Unity Package Manager. This is for in-development or project-oriented repositories, It allows for us to keep modular and atomic repositories that are reusable while maintaining the ease of use and quick mutability of a single project workflow. _Packages should still be used for third party or projects no longer in active development!_
+The use case I've described does not satisfy the same use case as UPM or any other package managers I'm aware of. The intention is for this to be used in parallel with the Unity Package Manager. This is for in-development or project-oriented repositories, It allows for us to keep modular and atomic repositories that are reusable while maintaining the ease of use and quick mutability of a single project workflow. 
+
+_Packages should still be used for third party or projects no longer in active development!_
 
 # Technology
 
