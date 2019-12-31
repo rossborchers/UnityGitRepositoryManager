@@ -23,7 +23,7 @@ This is a tool for working on many repositories at once and pushing changes back
 # Installation
 ### Simple Install
 
-- Download this repository.
+- Download or clone this repository.
   - copy Assets/Package anywhere under your projects Assets folder.
   
 ### Manual Self-Bootsrap Install
@@ -61,12 +61,20 @@ Ive heard people argue that when you need a subfolder what you really need to do
 
 The use case Ive described does not satisfy the same use case as UPM or any other package managers im aware of. The intention is for this to be used in paralell with the Unity Package Manager. This is for in-development or project oriented repositories, It allows for us to keep modular and atomic repositories that are reusable, while maintaining the ease of use and quick mutability of a single project workflow. _Packages should still be used for third party or projects no longer in active development!_
 
-
-
 # Technology
 
 - Currently only supports [Windows](https://www.microsoft.com/en-us/software-download/windows10) (should be quite easy to add mac and linux support if anyone is interested)
 - Tested with [Unity 2019.2](https://unity.com/)
 - c# [.NET standard 2.0](https://docs.microsoft.com/en-us/dotnet/standard/net-standard)
 - Library uses [LibGit2Sharp](https://github.com/libgit2/libgit2sharp/) 
+
+# Contributing
+
+This project is in the early stages, there are many easy bugs to squash and many features that would be useful. Ive outlined some issues that still need adressing.
+
+If you give it a try, use it on a project, or just want to discuss the ideology of this approach message me at rossborchers@gmail.com
+
+
+
+
 
