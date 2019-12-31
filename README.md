@@ -53,15 +53,15 @@ Package managers are in my experience geared for a read-only workflow, so they d
 Git submodules are the closest thing to this. It would be _loveley_ if it worked but there is one big issue:
 git submodules **[do not](https://stackoverflow.com/questions/5303496/how-to-change-a-git-submodule-to-point-to-a-subfolder) [support](https://www.reddit.com/r/git/comments/8sanj7/create_subfolder_using_a_subfolder_from_a/) pulling only subfolders**.
 ##### Why do you need to pull subfolders? 
-- Often when developing plugins the plugin itself is located in the same repository.
+- Often when developing plugins the plugin project itself is located in the same repository.
 - We sometimes have test scenes or other irrelevant assets we do not want to include. These bloat the dependents.
 - In a unity project, we have the folders that exist outside (ProjectSettings, etc.) of assets. We don't want to include those in a project that uses it as a submodule
 
 I've heard people argue that when you need a subfolder what you need to do is split into 2 repositories. but just because you want to share your assets folder separately to your project does not mean that they are decoupled. In the name of cohesion and sanity, this is a bad idea!
 
 ### In Summary
-
-The use case I've described does not satisfy the same use case as UPM or any other package managers I'm aware of. The intention is for this to be used in parallel with the Unity Package Manager. This is for in-development or project-oriented repositories, It allows for us to keep modular and atomic repositories that are reusable while maintaining the ease of use and quick mutability of a single project workflow. 
+Updating multiple repositories is slow, monoliths are bad. We need a way to update multiple repositories fast.
+The use case I've described does not satisfy the same use case as UPM or any other package managers I'm aware of. The intention is for this to be used in parallel with the Unity Package Manager. This is for in-development or project-oriented repositories, It allows for us to keep modular and atomic repositories that are reusable while maintaining the ease of use and mutability of a single project workflow. 
 
 _Packages should still be used for third party or projects no longer in active development!_
 
