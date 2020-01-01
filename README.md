@@ -76,4 +76,4 @@ _Packages should still be used for third party projects or projects no longer in
 
 This project is in the early stages, there are many easy bugs to squash and many features that would be useful. Ill outline issues as they become apparent.
 
-If you give it a try, use it on a project, or just want to discuss the ideology of this approach message me at rossborchers@gmail.com
+If you give it a try, use it on a project, or just want to discuss the ideology of this approach please email me.
