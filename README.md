@@ -34,6 +34,7 @@ This is a tool for working on many repositories at once and pushing changes back
   - Open the manager window under "Window/Repository Manager"
   - Add https://github.com/rossborchers/UnityGitRepositoryManager with the name RepositoryManager
   - Update it.
+  - You may need to restart Unity.
   - You now have a self bootstrapping repo manager. You can make changes and pr them back here ;)
   
 ### UPM
