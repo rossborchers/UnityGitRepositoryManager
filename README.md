@@ -70,7 +70,7 @@ _Packages should still be used for third party projects or projects no longer in
 - Currently only supports [Windows](https://www.microsoft.com/en-us/software-download/windows10) (should be quite easy to add mac and Linux support if anyone is interested)
 - Tested with [Unity 2019.2](https://unity.com/)
 - c# [.NET standard 2.0](https://docs.microsoft.com/en-us/dotnet/standard/net-standard)
-- Library uses [LibGit2Sharp](https://github.com/libgit2/libgit2sharp/) 
+- Library uses [LibGit2Sharp](https://github.com/libgit2/libgit2sharp/). Tested on public and private repos. Supports 2FA.
 
 # Contributing
 
