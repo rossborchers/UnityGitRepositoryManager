@@ -62,6 +62,7 @@ ExportedObj/
 !Plugin/**/*.mdb
 !Plugin/**/*.opendb
 !Plugin/**/*.VC.db
+Plugin/obj
 
 # Unity3D generated meta files
 *.pidb.meta
