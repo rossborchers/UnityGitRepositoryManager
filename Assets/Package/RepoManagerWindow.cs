@@ -37,6 +37,8 @@ namespace GitRepositoryManager
 		private bool showWarningMessage;
 		private bool lastFrameWasWaitingToShowWarning;
 
+		private const string FULL_RE_IMPORT_KEY = "RepositoryManager.FullReImport";
+
 		private HashSet<RepoPanel> _reposWereBusy = new HashSet<RepoPanel>();
 		private HashSet<RepoPanel> _reposBusy = new HashSet<RepoPanel>();
 
@@ -106,7 +108,10 @@ namespace GitRepositoryManager
 					RepoPanel panel = new RepoPanel(_repoPath, dependency, GetPlatformAuthentication());
 					panel.OnRemovalRequested += OnPanelRemovalRequested;
 					panel.OnDeleteAssetsRequested += DeleteAssets;
-					panel.OnCopyFinished += UpdateAssetDatabaseForNewAssets;
+					panel.OnCopyFinished += (assets, updatedRepos) => 
+					{
+						UpdateAssetDatabaseForNewAssets(assets, EditorPrefs.GetBool(FULL_RE_IMPORT_KEY, true), updatedRepos);
+					};
 					_repoPanels.Add(panel);
 				}
 			}
@@ -153,26 +158,33 @@ namespace GitRepositoryManager
 						//Debug.Log("Evaluating next directory " + parentDir.FullName);
 					}
 				}
-				
 			}
 		}
 
-		private void UpdateAssetDatabaseForNewAssets(List<string> coppiedAssets, params RepoPanel[] updatedRepos)
+		private void UpdateAssetDatabaseForNewAssets(List<string> coppiedAssets, bool fullReImport, params RepoPanel[] updatedRepos)
 		{
-			//Update all assets individually to avoid a full editor re-import
-			for (int i = 0; i < coppiedAssets.Count; i++)
+			if (fullReImport)
 			{
-				string extension = Path.GetExtension(coppiedAssets[i]);
-				if (extension == ".meta")
+				EditorUtility.DisplayProgressBar("Importing Repositories", "Performing full re-import" + GUIUtility.GetLoadingDots(), (float)EditorApplication.timeSinceStartup % 1);
+				AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+			}
+			else
+			{
+				//Update all assets individually to avoid a full editor re-import
+				for (int i = 0; i < coppiedAssets.Count; i++)
 				{
-					//dont import meta files directly.
-					continue;
+					string extension = Path.GetExtension(coppiedAssets[i]);
+					if (extension == ".meta")
+					{
+						//dont import meta files directly.
+						continue;
+					}
+
+					string assetDBPath = GetAssetDatabasePathFromFullPath(coppiedAssets[i]);
+
+					EditorUtility.DisplayProgressBar("Importing Repositories", "Importing repositories into project. Please wait a moment" + GUIUtility.GetLoadingDots(), ((float)i) / coppiedAssets.Count);
+					AssetDatabase.ImportAsset(assetDBPath, ImportAssetOptions.ForceSynchronousImport);
 				}
-
-				string assetDBPath = GetAssetDatabasePathFromFullPath(coppiedAssets[i]);
-
-				EditorUtility.DisplayProgressBar("Importing Repositories", "Importing repositories into project. Please wait a moment" + GUIUtility.GetLoadingDots(), ((float)i) / coppiedAssets.Count);
-				AssetDatabase.ImportAsset(assetDBPath, ImportAssetOptions.ForceSynchronousImport);
 			}
 
 			//snapshot folder and file state to compare against later!
@@ -290,7 +302,7 @@ namespace GitRepositoryManager
 
 			if(coppiedAssets.Count > 0)
 			{
-				UpdateAssetDatabaseForNewAssets(coppiedAssets, updatedRepos.ToArray());
+				UpdateAssetDatabaseForNewAssets(coppiedAssets, EditorPrefs.GetBool(FULL_RE_IMPORT_KEY, true), updatedRepos.ToArray());
 			}
 
 			if (repaint)
@@ -308,6 +320,9 @@ namespace GitRepositoryManager
 
 		private void OnGUI()
 		{
+			bool reImport = EditorGUILayout.Toggle("Full Re-Import", EditorPrefs.GetBool(FULL_RE_IMPORT_KEY, true));
+			EditorPrefs.SetBool(FULL_RE_IMPORT_KEY, reImport);
+
 			Rect labelRect = EditorGUILayout.GetControlRect();
 			labelRect.y += labelRect.height / 2f;
 
