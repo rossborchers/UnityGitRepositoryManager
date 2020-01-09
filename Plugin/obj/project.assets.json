@@ -317,11 +317,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Projects\\Ross\\UnityGitRepositoryManager\\Plugin\\GitRepositoryManager.csproj",
+      "projectUniqueName": "C:\\Projects\\MOSTI\\UnityGitRepositoryManager\\Plugin\\GitRepositoryManager.csproj",
       "projectName": "GitRepositoryManager",
-      "projectPath": "C:\\Projects\\Ross\\UnityGitRepositoryManager\\Plugin\\GitRepositoryManager.csproj",
+      "projectPath": "C:\\Projects\\MOSTI\\UnityGitRepositoryManager\\Plugin\\GitRepositoryManager.csproj",
       "packagesPath": "C:\\Users\\Renderheads 1\\.nuget\\packages\\",
-      "outputPath": "C:\\Projects\\Ross\\UnityGitRepositoryManager\\Plugin\\obj\\",
+      "outputPath": "C:\\Projects\\MOSTI\\UnityGitRepositoryManager\\Plugin\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
