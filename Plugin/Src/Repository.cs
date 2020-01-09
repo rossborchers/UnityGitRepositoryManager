@@ -439,7 +439,10 @@ namespace GitRepositoryManager
 				{
 					CredentialsProvider = (credsUrl, user, supportedCredentials) =>
 					{
-						state.CredentialManager.GetCredentials(credsUrl, user, supportedCredentials, out var credentials, out string message);
+						if (!state.CredentialManager.GetCredentials(credsUrl, user, supportedCredentials, out var credentials, out string message))
+						{
+							throw new Exception("Failed to get credentials: " + message);
+						}
 						return credentials;
 					},
 

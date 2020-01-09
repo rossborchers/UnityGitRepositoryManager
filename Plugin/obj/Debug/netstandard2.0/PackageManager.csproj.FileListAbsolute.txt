@@ -1,8 +1,0 @@
-C:\Projects\Ross\PackageManager\bin\Debug\netstandard2.0\PackageManager.deps.json
-C:\Projects\Ross\PackageManager\bin\Debug\netstandard2.0\PackageManager.dll
-C:\Projects\Ross\PackageManager\obj\Debug\netstandard2.0\PackageManager.csprojAssemblyReference.cache
-C:\Projects\Ross\PackageManager\obj\Debug\netstandard2.0\PackageManager.AssemblyInfoInputs.cache
-C:\Projects\Ross\PackageManager\obj\Debug\netstandard2.0\PackageManager.AssemblyInfo.cs
-C:\Projects\Ross\PackageManager\bin\Debug\netstandard2.0\PackageManager.pdb
-C:\Projects\Ross\PackageManager\obj\Debug\netstandard2.0\PackageManager.dll
-C:\Projects\Ross\PackageManager\obj\Debug\netstandard2.0\PackageManager.pdb
