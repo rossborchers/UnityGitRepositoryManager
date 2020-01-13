@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using UnityEditor;
 using UnityEditor.AnimatedValues;
+using UnityEditor.Callbacks;
 using UnityEngine;
 
 namespace GitRepositoryManager
@@ -166,7 +167,7 @@ namespace GitRepositoryManager
 			if (fullReImport)
 			{
 				EditorUtility.DisplayProgressBar("Importing Repositories", "Performing full re-import" + GUIUtility.GetLoadingDots(), (float)EditorApplication.timeSinceStartup % 1);
-				AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+				AssetDatabase.Refresh();
 			}
 			else
 			{
