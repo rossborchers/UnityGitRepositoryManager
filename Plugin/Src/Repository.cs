@@ -380,13 +380,13 @@ namespace GitRepositoryManager
 
 			FetchOptions fetchOptions = new FetchOptions()
 			{
-				TagFetchMode = TagFetchMode.All,
+				/*TagFetchMode = TagFetchMode.All,
 				OnTransferProgress = new LibGit2Sharp.Handlers.TransferProgressHandler((progress) => 
 				{
 					_progressQueue.Enqueue(new Progress(((float)progress.ReceivedObjects) / progress.TotalObjects, "Fetching " + progress.ReceivedObjects + "/" + progress.TotalObjects + "(" + progress.ReceivedBytes + " bytes )"));
 					
 					return _cancellationPending;
-				}),
+				}),*/
 				CredentialsProvider = (credsUrl, user, supportedCredentials) =>
 				{
 					state.CredentialManager.GetCredentials(credsUrl, user, supportedCredentials, out var credentials, out string message);
@@ -401,10 +401,10 @@ namespace GitRepositoryManager
 				//Repo exists we are doing a pull
 				using (var repo = new LibGit2Sharp.Repository(state.LocalDestination))
 				{
-					_progressQueue.Enqueue(new Progress(0, "Nuking local changes. Checking out " + state.Branch));
+					//_progressQueue.Enqueue(new Progress(0, "Nuking local changes. Checking out " + state.Branch));
 
-					Branch branch = repo.Branches[state.Branch];
-					Commands.Checkout(repo, branch, new CheckoutOptions() { CheckoutModifiers = CheckoutModifiers.Force, CheckoutNotifyFlags = CheckoutNotifyFlags.None});
+					//Branch branch = repo.Branches[state.Branch];
+					//Commands.Checkout(repo, branch, new CheckoutOptions() { CheckoutModifiers = CheckoutModifiers.Force, CheckoutNotifyFlags = CheckoutNotifyFlags.None});
 
 					// Credential information to fetch
 					PullOptions options = new PullOptions
@@ -414,7 +414,7 @@ namespace GitRepositoryManager
 					
 					// User information to create a merge commit. Should not happen as we force checkout before pulling.
 					var signature = new LibGit2Sharp.Signature(
-						new Identity("MergeNotAllowed", "MergeNotAllowed@MergeMail.com"), DateTimeOffset.Now);
+						new Identity("RepositoryManager", "repositorymanager@mergemail.com"), DateTimeOffset.Now);
 
 					try
 					{
@@ -428,6 +428,37 @@ namespace GitRepositoryManager
 						_progressQueue.Enqueue(new Progress(0, "Pull failed: " + e.Message));
 						_lastOperationSuccess = false;
 					}
+
+					/*try
+					{					
+						var remote = repo.Network.Remotes["origin"];
+						var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
+
+						_progressQueue.Enqueue(new Progress(0, "Fetching from " + remote.Name));
+
+						Commands.Fetch(repo, remote.Name, refSpecs, fetchOptions, "");
+
+						_progressQueue.Enqueue(new Progress(1, "Complete"));
+
+						try
+						{
+							Branch branch = repo.Branches["origin/" + state.Branch];
+							var signature = new Signature(new Identity("RepositoryManager", "Repositorymanager@Mergemail.com"), DateTimeOffset.Now);
+							repo.Merge(branch, signature);
+
+							_lastOperationSuccess = true;
+						}
+						catch (Exception e)
+						{
+							_progressQueue.Enqueue(new Progress(0, "Merge failed: " + e.Message));
+							_lastOperationSuccess = false;
+						}
+					}
+					catch (Exception e)
+					{
+						_progressQueue.Enqueue(new Progress(0, "Fetch failed: " + e.Message));
+						_lastOperationSuccess = false;
+					}*/
 				}
 			}
 			else
