@@ -239,7 +239,6 @@ namespace GitRepositoryManager
 			}
 		}
 
-
 		public void CopyBackChanges()
 		{
 			//Swapped from forward copy. Other logic can stay the same.
@@ -298,6 +297,7 @@ namespace GitRepositoryManager
 				}
 			}
 		}
+
 		public void CancelUpdate()
 		{
 			if(_inProgress) _cancellationPending = true;
@@ -323,7 +323,6 @@ namespace GitRepositoryManager
 				return _lastOperationSuccess;
 			}
 		}
-
 
 		public bool CancellationPending
 		{
@@ -502,6 +501,20 @@ namespace GitRepositoryManager
 				}
 			}
 
+			if(LastOperationSuccess)
+			{
+				_progressQueue.Enqueue(new Progress(1, "Downloading LFS files"));
+				try
+				{
+					InstallAndPullLFS(state.LocalDestination);
+				}
+				catch(Exception e)
+				{	
+					_progressQueue.Enqueue(new Progress(0, "LFS Pull failed: " + e.Message));
+					_lastOperationSuccess = false;
+				}
+			}
+
 			//Once completed
 			_inProgress = false;
 			_cancellationPending = false;
@@ -516,6 +529,53 @@ namespace GitRepositoryManager
 				Verb = "open"
 			});
 			//Leave the process running. User should close it manually.
+		}
+
+		public void InstallAndPullLFS(string path)
+		{
+			//Install lfs
+			ProcessStartInfo installStartInfo = new ProcessStartInfo
+			{
+				FileName = "git-lfs",
+				Arguments = "install",
+				WorkingDirectory = path,
+				UseShellExecute = false,
+				WindowStyle = ProcessWindowStyle.Hidden,
+				CreateNoWindow = true,
+				RedirectStandardInput = true,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true
+			};
+
+			Process installProcess = new Process
+			{
+				StartInfo = installStartInfo
+			};
+
+			installProcess.Start();
+			installProcess.WaitForExit();
+
+			//Now pull lfs
+			ProcessStartInfo pullStartInfo = new ProcessStartInfo
+			{
+				FileName = "git-lfs",
+				Arguments = "pull",
+				WorkingDirectory = path,
+				UseShellExecute = false,
+				WindowStyle = ProcessWindowStyle.Hidden,
+				CreateNoWindow = true,
+				RedirectStandardInput = true,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true
+			};
+
+			Process pullProcess = new Process
+			{
+				StartInfo = pullStartInfo
+			};
+
+			pullProcess.Start();
+			pullProcess.WaitForExit();
 		}
 	}
 }
