@@ -1,3 +1,28 @@
 {
-    "Dependencies": []
+    "Dependencies": [
+        {
+            "Name": "BVH",
+            "Url": "https://github.com/rossborchers/UnityBoundingVolumeHeirachy",
+            "SubFolder": "master",
+            "Branch": "master"
+        },
+        {
+            "Name": "RepoManager",
+            "Url": "https://github.com/rossborchers/UnityGitRepositoryManager",
+            "SubFolder": "Assets",
+            "Branch": "master"
+        },
+        {
+            "Name": "Boilerplate",
+            "Url": "https://github.com/rossborchers/UnityBoilerplate",
+            "SubFolder": "Bootstrapper",
+            "Branch": "master"
+        },
+        {
+            "Name": "ProceduralTrees",
+            "Url": "https://github.com/rossborchers/ProceduralTrees",
+            "SubFolder": "Assets",
+            "Branch": "master"
+        }
+    ]
 }

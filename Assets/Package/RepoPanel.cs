@@ -136,61 +136,81 @@ namespace GitRepositoryManager
 			//We keep repositories on seperate branches seperate as we want to be able to copy back working changes with the knowledge that we are on the correct checkout.
 			folders = Path.Combine(folders, DependencyInfo.Branch);
 
-			return Path.Combine(CacheRoot, folders);
-		}
-
-		public static string CacheRoot
-		{
-			get
-			{
-				return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UnityGitRepositoryCache");
-			}
+			return folders;
 		}
 
 		public void OnDrawGUI(int index)
 		{
-			Rect rect;
+			Rect headerRect = EditorGUILayout.GetControlRect();
+			Rect fullRect = new Rect();
+			Rect bottomRect = new Rect();
 
-			if (_repo.InProgress || !_repo.LastOperationSuccess || _hasLocalChanges)
+			string foldoutKey = $"RepoPanelFoldout-{DependencyInfo.Url}-{DependencyInfo.Branch}";
+			bool expand = EditorGUI.Foldout(headerRect, EditorPrefs.GetBool(foldoutKey, false), "");
+			EditorPrefs.SetBool(foldoutKey, expand);
+
+			if (expand)
 			{
-				rect = EditorGUILayout.GetControlRect(GUILayout.Height(50));
+				bottomRect = EditorGUILayout.GetControlRect(GUILayout.Height(20));
+
+				fullRect = bottomRect;
+				fullRect.xMax = Mathf.Max(fullRect.xMax, headerRect.xMax);
+				fullRect.yMax = Mathf.Max(fullRect.yMax, headerRect.yMax);
+				fullRect.xMin = Mathf.Min(fullRect.xMin, headerRect.xMin);
+				fullRect.yMin = Mathf.Min(fullRect.yMin, headerRect.yMin);
 			}
 			else
 			{
-				rect = EditorGUILayout.GetControlRect();
+				fullRect = headerRect;
 			}
 
-			Rect boxRect = rect;
+			//Overlay to darken every second item
+			Rect boxRect = fullRect;
 			boxRect.y -= 1.5f;
 			boxRect.height += 3;
 			boxRect.x -= 5;
 			boxRect.width += 10;
 
-			Rect labelRect = rect;
-			labelRect.width = rect.x + rect.width - 50 - 15 - 5;
-			labelRect.x += 4;
+			//Header rects
+
+			Rect labelRect = headerRect;
+			labelRect.width = headerRect.x + headerRect.width - 53 - 20 - 22 - 5;
+			labelRect.height = 18;
+			labelRect.x += 15;
 
 			Rect updatingLabelRect = labelRect;
 			updatingLabelRect.y += 12;
 
 			Rect progressMessageRect = updatingLabelRect;
 			progressMessageRect.y += 16;
-			progressMessageRect.width = rect.width;
+			progressMessageRect.width = fullRect.width;
 
-			Rect buttonRect = rect;
-			buttonRect.x = rect.width - 48;
-			buttonRect.width = 50;
-			buttonRect.y += 1;
-			buttonRect.height = 15;
+			Rect updateButtonRect = headerRect;
+			updateButtonRect.x = headerRect.width - 48;
+			updateButtonRect.width = 53;
+			updateButtonRect.y += 1;
+			updateButtonRect.height = 15;
 
-			Rect removeButtonRect = buttonRect;
-			removeButtonRect.width = 15;
-			removeButtonRect.x = buttonRect.x - 15;
+			Rect removeButtonRect = updateButtonRect;
+			removeButtonRect.width = 20;
+			removeButtonRect.x = updateButtonRect.x - 20;
 
+			Rect localChangesRect = updateButtonRect;
+			localChangesRect.width = 10;
+			localChangesRect.x = removeButtonRect.x - localChangesRect.width;
+			//Expanded rect
+
+			Rect gitBashRect = bottomRect;
+			gitBashRect.x = bottomRect.width - 68;
+			gitBashRect.width = 60;
+			gitBashRect.y += 1;
+			gitBashRect.height = 15;
+
+			//Full Rect
 			Repository.Progress lastProgress = _repo.GetLastProgress();
 
-			Rect progressRectOuter = rect;
-			Rect progressRectInner = rect;
+			Rect progressRectOuter = fullRect;
+			Rect progressRectInner = fullRect;
 			progressRectInner.width = progressRectOuter.width * lastProgress.NormalizedProgress;
 
 			if (index % 2 == 1)
@@ -198,102 +218,37 @@ namespace GitRepositoryManager
 				GUI.Box(boxRect, "");
 			}
 
-			if ((_repo.InProgress || !_repo.LastOperationSuccess || _hasLocalChanges))
+			//if(_hasLocalChanges)
+			{
+				GUI.color = Color.yellow;
+				GUI.Label(localChangesRect, new GUIContent("*", "Local changes detected. Commit them before proceeding."), EditorStyles.miniBoldLabel);
+				GUI.color = Color.white;
+			}
+
+			if (_repo.InProgress)
 			{
 				GUI.Box(progressRectOuter, "");
 
-				GUI.color = _repo.CancellationPending || !_repo.LastOperationSuccess ? Color.red : Color.green;
-
-				if(_hasLocalChanges)
-				{
-					GUI.color = Color.yellow;
-				}
+				GUI.color = !_repo.LastOperationSuccess ? Color.red : Color.green;
 
 				GUI.Box(progressRectInner, "");
 				GUI.color = Color.white;
 
-				if (_repo.LastOperationSuccess)
-				{
-					if(_hasLocalChanges)
-					{
-						updatingLabelRect.y += 4;
-						GUI.Label(updatingLabelRect, "Local changes\ndetected!", EditorStyles.miniBoldLabel);
-					}
-					else
-					{
-						GUI.Label(updatingLabelRect, (_repo.CancellationPending ? "Cancelling" : "Updating") + GUIUtility.GetLoadingDots(), EditorStyles.miniLabel);
-					}
-				}
-				else
-				{
-					GUI.Label(updatingLabelRect, "Failure", EditorStyles.miniLabel);
-				}
+				GUI.Label(updatingLabelRect, ("Updating" ) + GUIUtility.GetLoadingDots(), EditorStyles.miniLabel);
 
-				if(_hasLocalChanges)
+				GUI.Label(progressMessageRect, lastProgress.Message, EditorStyles.miniLabel);
+			}
+			else if (!_repo.LastOperationSuccess)
+			{
+				GUI.Label(updatingLabelRect, "Failure", EditorStyles.miniLabel);
+				if (GUI.Button(updateButtonRect, "Retry", EditorStyles.miniButton))
 				{
-					Rect pushChangesRect = progressMessageRect;
-					pushChangesRect.y -= 5;
-					pushChangesRect.x = progressMessageRect.x + progressMessageRect.width - 55;
-					pushChangesRect.width = 50;
-					pushChangesRect.height = 15;
-
-					if (GUI.Button(pushChangesRect, new GUIContent("Copy", "This will copy the changes back to the local reposiory, clear the dirty flag, and open a window to allow you to resolve changes back to the remote.\n" +
-						"Caution: any uncommitted changes in the cache could be overridden."), EditorStyles.miniButton))
-					{
-						/*int choice = EditorUtility.DisplayDialogComplex("Resolve local changes", "Please choose what to do with the local changes.", "Commit and Push",  "Cancel", "Open Git Client");
-						switch(choice)
-						{
-							case 0:
-							{
-									Debug.Log("Chose Commit and Push");
-								break;
-							}
-							case 1:
-							{
-									Debug.Log("Chose Cancel");
-									break;
-							}
-							case 2:
-							{
-									Debug.Log("Chose Open Git Client");
-									break;
-							}
-						}*/
-
-						TakeBaselineSnapshot();
-
-						//_repo.OpenRepositoryDestination();
-					}
-				}
-				else
-				{
-					GUI.Label(progressMessageRect, lastProgress.Message, EditorStyles.miniLabel);
-				}
-
-				if (_repo.LastOperationSuccess)
-				{
-					//TODO: Cancel not fully implemented due to complexities in libgit2sharp. Hiding for now.
-					/*if (!_repo.CancellationPending && GUI.Button(buttonRect, "Cancel", EditorStyles.miniButton))
-					{
-						_repo.CancelUpdate();
-					};*/
-
-					if(_hasLocalChanges)
-					{
-						DrawUpdateButton(buttonRect);
-					}
-				}
-				else
-				{
-					if (GUI.Button(buttonRect, "Retry", EditorStyles.miniButton))
-					{
-						UpdateRepository();
-					};
-				}
+					UpdateRepository();
+				};
 			}
 			else
 			{
-				DrawUpdateButton(buttonRect);
+				DrawUpdateButton(updateButtonRect);
 			}
 
 			if (!_repo.InProgress && GUI.Button(removeButtonRect, new GUIContent("x", "Remove the repository from this project."), EditorStyles.miniButton))
@@ -307,7 +262,17 @@ namespace GitRepositoryManager
 
 			GUIStyle labelStyle = new GUIStyle(EditorStyles.label);
 			labelStyle.richText = true;
-			GUI.Label(labelRect, DependencyInfo.Name + "  <b><size=9>" + /*(String.IsNullOrEmpty(DependencyInfo.Branch) ? (DependencyInfo.Tag + " (tag)") :*/ DependencyInfo.Branch/*)*/ + "</size></b>", labelStyle);
+			GUI.Label(labelRect, DependencyInfo.Name + "  <b><size=9>" + DependencyInfo.Branch + "</size></b>", labelStyle);
+
+			//Draw expanded content
+			if (expand)
+			{
+				//if (GUI.Button(gitBashRect, new GUIContent("Git Bash", "Open git bash to perform more advanced operations"),
+				//	EditorStyles.miniButton))
+				//{
+
+				//}
+			}
 		}
 
 		private void DrawUpdateButton(Rect rect)
@@ -316,7 +281,7 @@ namespace GitRepositoryManager
 			{
 				if (HasLocalChanges())
 				{
-					if (EditorUtility.DisplayDialog("Local Changes Detected", DependencyInfo.Name + " has local changes. Updating will permenantly delete them. Continue?", "Yes", "No"))
+					if (EditorUtility.DisplayDialog("Local Changes Detected", DependencyInfo.Name + " has local changes. Updating will permanently delete them. Continue?", "Yes", "No"))
 					{
 						UpdateRepository();
 					}
@@ -336,11 +301,6 @@ namespace GitRepositoryManager
 		public void UpdateRepository()
 		{
 			_repo.TryUpdate();
-		}
-
-		public void CancelUpdateRepository()
-		{
-			_repo.CancelUpdate();
 		}
 	}
 }

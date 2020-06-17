@@ -300,17 +300,12 @@ namespace GitRepositoryManager
 			updateAllRect.height = 15;
 			updateAllRect.x = labelRect.width - 70;
 
-			Rect openCacheRect = labelRect;
-			openCacheRect.width = 70;
-			openCacheRect.height = 15;
-			openCacheRect.x = labelRect.width - (70 * 2);
-
 			Rect cancelAllRect = labelRect;
 			cancelAllRect.width = 70;
 			cancelAllRect.height = 15;
 			cancelAllRect.x = labelRect.width - (70 * 2);
 
-			GUI.Label(labelRect, "Repositories" /*(" + Repository.TotalInitialized + ")"*/, EditorStyles.miniLabel);
+			GUI.Label(labelRect, "Repositories", EditorStyles.miniLabel);
 
 			if (GUI.Button(updateAllRect, new GUIContent("Update All", "Update all repositories. You will be asked before overwriting local changes."), EditorStyles.toolbarButton))
 			{
@@ -364,28 +359,6 @@ namespace GitRepositoryManager
 						_repoPanels[i].UpdateRepository();
 					}
 				}
-			}
-
-			if (GUI.Button(cancelAllRect, new GUIContent("Open Cache", "Open the cache folder root. All repositories for all projects are stored here."), EditorStyles.toolbarButton))
-			{
-				Process.Start(new ProcessStartInfo()
-				{
-					FileName = RepoPanel.CacheRoot,
-					UseShellExecute = true,
-					Verb = "open"
-				});
-			}
-
-			if (_reposBusy.Count > 0)
-			{
-				//TODO: Cancel not fully implemented due to complexities in libgit2sharp. Hiding for now.
-				/*if (GUI.Button(cancelAllRect, "Cancel All", EditorStyles.miniButton))
-				{
-					for (int i = 0; i < _repoPanels.Count; i++)
-					{
-						_repoPanels[i].CancelUpdateRepository();
-					}
-				}*/
 			}
 
 			GUIUtility.DrawLine();

@@ -34,6 +34,37 @@ namespace GitRepositoryManager
             }
         }
 
+        public static bool SubmoduleIsValid(string directory)
+        {
+            //TODO:
+            return true;
+        }
+
+        public static bool AddSubmodule(string rootDirectory, string directory, string url, string branch)
+        {
+            //TODO: as seen here https://stackoverflow.com/questions/30129920/git-submodule-without-extra-weight/38895397#38895397. So git pulls do not affect submodules.
+            //what does this mean for pull through sourcetree?
+            //return RunCommand(rootDirectory,"git config -f .gitmodules submodule.<name>.shallow true")
+            return RunCommand(rootDirectory, $"git submodule add -b {branch} --depth 1 {url} {directory}", out string output);
+        }
+
+        public static bool InitSubmodule(string rootDirectory, string directory, string url, string branch)
+        {
+            //TODO: sparse checkout must go under: .git/modules/<mymodule>/info/ as per https://stackoverflow.com/questions/6238590/set-git-submodule-to-shallow-clone-sparse-checkout
+            return RunCommand(rootDirectory, $"git sparse-checkout init --cone", out string output);
+        }
+
+        public static void OpenRepositoryInExplorer(string directory)
+        {
+            Process.Start(new ProcessStartInfo()
+            {
+                FileName = directory,
+                UseShellExecute = true,
+                Verb = "open"
+            });
+            //Leave the process running. User should close it manually.
+        }
+
         private static bool RunCommand(string directory, string command, out string output)
         {
             try
