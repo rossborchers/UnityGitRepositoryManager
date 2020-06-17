@@ -1,5 +1,4 @@
-﻿using GitRepositoryManager.CredentialManagers;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -17,11 +16,10 @@ namespace GitRepositoryManager
 			get;
 			private set;
 		}
-		
-		private ICredentialManager _credentialManager;
+
 		private string _repositoryCopyRoot;
 		private bool _repoWasInProgress;
-		public event Action<string, string, string, string> OnRemovalRequested = delegate { };
+		public event Action<string, string, string> OnRemovalRequested = delegate { };
 		public event Action<List<string>, RepoPanel[]> OnCopyFinished = delegate { };
 		public event Action<List<string>> OnDeleteAssetsRequested = delegate { };
 
@@ -31,22 +29,22 @@ namespace GitRepositoryManager
 
 		public bool HasLocalChanges()
 		{
-			string path = CopyPath(_repositoryCopyRoot);
+			string path = RepositoryPath();
 			string lastSnapshot = EditorPrefs.GetString(path + "_snapshot");
-			string currentSnapshot = SnapshotCopyFolder(path);
+			string currentSnapshot = SnapshotFolder(path);
 
 			return lastSnapshot != currentSnapshot;
 		}
 
 		public void TakeBaselineSnapshot()
 		{
-			string path = CopyPath(_repositoryCopyRoot);
-			string newBaseline = SnapshotCopyFolder(path);
+			string path = RepositoryPath();
+			string newBaseline = SnapshotFolder(path);
 			EditorPrefs.SetString(path + "_snapshot", newBaseline);
 		}
 
 		// https://stackoverflow.com/questions/3625658/creating-hash-for-folder
-		private string SnapshotCopyFolder(string path)
+		private string SnapshotFolder(string path)
 		{
 			if(!Directory.Exists(path))
 			{
@@ -84,14 +82,13 @@ namespace GitRepositoryManager
 			get
 			{
 				//Link to repository task needs to survive editor reloading in case job is in progress. We do this by never storing references. always calling get. This will lazy init if the repo does not exist else reuse the repo.
-				return Repository.Get(_credentialManager, DependencyInfo.Url, RepositoryPath(), CopyPath(_repositoryCopyRoot), DependencyInfo.SubFolder, DependencyInfo.Branch);
+				return Repository.Get(DependencyInfo.Url, RepositoryPath(), DependencyInfo.SubFolder, DependencyInfo.Branch);
 			}
 		}
 
-		public RepoPanel(string repositoryCopyRoot, Dependency info, ICredentialManager credentials)
+		public RepoPanel(string repositoryCopyRoot, Dependency info)
 		{
 			DependencyInfo = info;
-			_credentialManager = credentials;
 			_repositoryCopyRoot = repositoryCopyRoot;
 
 			//Note if the hash gets too expensive we may have to cut this (maybe could be async?)
@@ -148,11 +145,6 @@ namespace GitRepositoryManager
 			{
 				return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UnityGitRepositoryCache");
 			}
-		}
-
-		public string CopyPath(string root)
-		{
-			return Path.Combine(root, DependencyInfo.Name);
 		}
 
 		public void OnDrawGUI(int index)
@@ -231,7 +223,7 @@ namespace GitRepositoryManager
 					{
 						GUI.Label(updatingLabelRect, (_repo.CancellationPending ? "Cancelling" : "Updating") + GUIUtility.GetLoadingDots(), EditorStyles.miniLabel);
 					}
-				}			
+				}
 				else
 				{
 					GUI.Label(updatingLabelRect, "Failure", EditorStyles.miniLabel);
@@ -244,18 +236,6 @@ namespace GitRepositoryManager
 					pushChangesRect.x = progressMessageRect.x + progressMessageRect.width - 55;
 					pushChangesRect.width = 50;
 					pushChangesRect.height = 15;
-
-					Rect deleteChangesRect = pushChangesRect;
-					deleteChangesRect.x -= 50;
-
-					if (GUI.Button(deleteChangesRect, new GUIContent("Remove", "Remove all local changes"), EditorStyles.miniButton))
-					{
-						if (EditorUtility.DisplayDialog("Confirm local changes removal", "This will permenantly delete any local changes and can not be reversed.", "Remove", "Cancel"))
-						{
-							//TODO: need to update manager window so it can rebuild asset database.
-							OnCopyFinished(CopyRepository(), new RepoPanel[] { this });
-						}
-					}
 
 					if (GUI.Button(pushChangesRect, new GUIContent("Copy", "This will copy the changes back to the local reposiory, clear the dirty flag, and open a window to allow you to resolve changes back to the remote.\n" +
 						"Caution: any uncommitted changes in the cache could be overridden."), EditorStyles.miniButton))
@@ -270,7 +250,7 @@ namespace GitRepositoryManager
 							}
 							case 1:
 							{
-									Debug.Log("Chose Cancel");						
+									Debug.Log("Chose Cancel");
 									break;
 							}
 							case 2:
@@ -279,11 +259,10 @@ namespace GitRepositoryManager
 									break;
 							}
 						}*/
-						_repo.CopyBackChanges();
 
 						TakeBaselineSnapshot();
 
-						_repo.OpenRepositoryDestination();
+						//_repo.OpenRepositoryDestination();
 					}
 				}
 				else
@@ -322,7 +301,7 @@ namespace GitRepositoryManager
 				if (EditorUtility.DisplayDialog("Remove " + DependencyInfo.Name + "?", "\nThis will remove the repository from the project.\n" +
 					((_hasLocalChanges)?"\nAll local changes will be discarded.\n":"") + "\nThis can not be undone.", "Yes", "Cancel"))
 				{
-					OnRemovalRequested(DependencyInfo.Name, DependencyInfo.Url, RepositoryPath(), CopyPath(_repositoryCopyRoot));
+					OnRemovalRequested(DependencyInfo.Name, DependencyInfo.Url, RepositoryPath());
 				}
 			};
 
@@ -362,14 +341,6 @@ namespace GitRepositoryManager
 		public void CancelUpdateRepository()
 		{
 			_repo.CancelUpdate();
-		}
-
-		public List<string> CopyRepository()
-		{
-			List<string> straysToBeDeleted;
-			List<string> coppied = _repo.Copy(out straysToBeDeleted);
-			OnDeleteAssetsRequested(straysToBeDeleted);
-			return coppied;
 		}
 	}
 }

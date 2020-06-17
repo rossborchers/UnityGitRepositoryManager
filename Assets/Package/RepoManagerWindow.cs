@@ -1,5 +1,4 @@
-﻿using GitRepositoryManager.CredentialManagers;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -106,12 +105,12 @@ namespace GitRepositoryManager
 			{
 				if (_repoPanels.FindAll(p => dependency.Url == p.DependencyInfo.Url).Count == 0)
 				{
-					RepoPanel panel = new RepoPanel(_repoPath, dependency, GetPlatformAuthentication());
+					RepoPanel panel = new RepoPanel(_repoPath, dependency);
 					panel.OnRemovalRequested += OnPanelRemovalRequested;
 					panel.OnDeleteAssetsRequested += DeleteAssets;
-					panel.OnCopyFinished += (assets, updatedRepos) => 
+					panel.OnCopyFinished += (assets, updatedRepos) =>  //TODO: never used?
 					{
-						UpdateAssetDatabaseForNewAssets(assets, EditorPrefs.GetBool(FULL_RE_IMPORT_KEY, true), updatedRepos);
+						UpdateAssetDatabaseForNewAssets(assets, updatedRepos);
 					};
 					_repoPanels.Add(panel);
 				}
@@ -119,7 +118,7 @@ namespace GitRepositoryManager
 			Repaint();
 		}
 
-		//This will be called after a copy where the files were found in the directories explored by the copy, but never replaced. 
+		//This will be called after a copy where the files were found in the directories explored by the copy, but never replaced.
 		//This means they are local only strays that should be removed.
 		private void DeleteAssets(List<string> toDelete)
 		{
@@ -140,7 +139,7 @@ namespace GitRepositoryManager
 
 				string toDeleteLocal = toDelete[i];
 
-				//Delete asset does not happen straight away.		
+				//Delete asset does not happen straight away.
 				//TODO: this is not recursing properly. File still exists.
 				string deleteDirectory = Path.GetDirectoryName(toDeleteLocal);
 				if (Directory.GetFiles(deleteDirectory).Length == 0 && Directory.GetDirectories(deleteDirectory).Length == 0)
@@ -162,31 +161,10 @@ namespace GitRepositoryManager
 			}
 		}
 
-		private void UpdateAssetDatabaseForNewAssets(List<string> coppiedAssets, bool fullReImport, params RepoPanel[] updatedRepos)
+		private void UpdateAssetDatabaseForNewAssets(List<string> coppiedAssets, params RepoPanel[] updatedRepos)
 		{
-			if (fullReImport)
-			{
-				EditorUtility.DisplayProgressBar("Importing Repositories", "Performing full re-import" + GUIUtility.GetLoadingDots(), (float)EditorApplication.timeSinceStartup % 1);
-				AssetDatabase.Refresh();
-			}
-			else
-			{
-				//Update all assets individually to avoid a full editor re-import
-				for (int i = 0; i < coppiedAssets.Count; i++)
-				{
-					string extension = Path.GetExtension(coppiedAssets[i]);
-					if (extension == ".meta")
-					{
-						//dont import meta files directly.
-						continue;
-					}
-
-					string assetDBPath = GetAssetDatabasePathFromFullPath(coppiedAssets[i]);
-
-					EditorUtility.DisplayProgressBar("Importing Repositories", "Importing repositories into project. Please wait a moment" + GUIUtility.GetLoadingDots(), ((float)i) / coppiedAssets.Count);
-					AssetDatabase.ImportAsset(assetDBPath, ImportAssetOptions.ForceSynchronousImport);
-				}
-			}
+			EditorUtility.DisplayProgressBar("Importing Repositories", "Performing full re-import" + GUIUtility.GetLoadingDots(), (float)EditorApplication.timeSinceStartup % 1);
+			AssetDatabase.Refresh();
 
 			//snapshot folder and file state to compare against later!
 			foreach (RepoPanel panel in updatedRepos)
@@ -211,7 +189,7 @@ namespace GitRepositoryManager
 			return Path.Combine("Assets", assetDBPath);
 		}
 
-		private void OnPanelRemovalRequested(string name, string url, string repoPath, string copyPath)
+		private void OnPanelRemovalRequested(string name, string url, string repoPath)
 		{
 			for (int i = 0; i < _dependencies.Dependencies.Count; i++)
 			{
@@ -219,7 +197,7 @@ namespace GitRepositoryManager
 				{
 					RepoPanel panel = _repoPanels.Find(p => _dependencies.Dependencies[i].Url == p.DependencyInfo.Url);
 					_dependencies.Dependencies.RemoveAt(i);
-					Repository.Remove(url, repoPath, copyPath);
+					Repository.Remove(url, repoPath);
 				}
 			}
 
@@ -286,8 +264,6 @@ namespace GitRepositoryManager
 				}
 			}
 
-			
-			List<string> coppiedAssets = new List<string>();
 			List<RepoPanel> updatedRepos = new List<RepoPanel>();
 
 			//Repos just finished updating. Time to copy.
@@ -297,14 +273,14 @@ namespace GitRepositoryManager
 				if (_reposWereBusy.Contains(panel) && !_reposBusy.Contains(panel))
 				{
 					updatedRepos.Add(panel);
-					coppiedAssets.AddRange(panel.CopyRepository());
+					//coppiedAssets.AddRange(panel.CopyRepository());
 				}
 			}
 
-			if(coppiedAssets.Count > 0)
-			{
-				UpdateAssetDatabaseForNewAssets(coppiedAssets, EditorPrefs.GetBool(FULL_RE_IMPORT_KEY, true), updatedRepos.ToArray());
-			}
+		//	if(coppiedAssets.Count > 0)
+			//{
+			//	UpdateAssetDatabaseForNewAssets(coppiedAssets, EditorPrefs.GetBool(FULL_RE_IMPORT_KEY, true), updatedRepos.ToArray());
+			//}
 
 			if (repaint)
 			{
@@ -314,16 +290,8 @@ namespace GitRepositoryManager
 			_reposWereBusy = new HashSet<RepoPanel>(_reposBusy);
 		}
 
-		private ICredentialManager GetPlatformAuthentication()
-		{
-			return new WindowsCredentialManager();
-		}
-
 		private void OnGUI()
 		{
-			bool reImport = EditorGUILayout.Toggle("Full Re-Import", EditorPrefs.GetBool(FULL_RE_IMPORT_KEY, true));
-			EditorPrefs.SetBool(FULL_RE_IMPORT_KEY, reImport);
-
 			Rect labelRect = EditorGUILayout.GetControlRect();
 			labelRect.y += labelRect.height / 2f;
 
@@ -372,7 +340,7 @@ namespace GitRepositoryManager
 						}
 						case 1:
 						{
-							//Do nothing on cancel.			
+							//Do nothing on cancel.
 							break;
 						}
 						case 2:
@@ -440,7 +408,7 @@ namespace GitRepositoryManager
 
 				_potentialNewDependency.Url = EditorGUILayout.TextField("Url", _potentialNewDependency.Url);
 
-				//TODO: For now tags are not exposed. When we do expose them we may have to have both branch and tag as git expects a branch in lots of places 
+				//TODO: For now tags are not exposed. When we do expose them we may have to have both branch and tag as git expects a branch in lots of places
 				//Unless we can get branch from tag but not sure its worth the effort
 				_potentialNewDependency.Branch = EditorGUILayout.TextField("Branch", _potentialNewDependency.Branch);
 				//_potentialNewDependency.Tag = null;
@@ -527,7 +495,7 @@ namespace GitRepositoryManager
 						if (validationSuccess)
 						{
 							//actually connect to repository
-							_tester.Test(_potentialNewDependency.Url, _potentialNewDependency.Branch, _potentialNewDependency.SubFolder, GetPlatformAuthentication(), (success, message) =>
+							_tester.Test(_potentialNewDependency.Url, _potentialNewDependency.Branch, _potentialNewDependency.SubFolder, (success, message) =>
 							{
 								if (success)
 								{

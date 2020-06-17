@@ -1,13 +1,10 @@
 ﻿
-using LibGit2Sharp;
-using GitRepositoryManager.CredentialManagers;
 using System.Threading;
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
-using System.Diagnostics;
 
 namespace GitRepositoryManager
 {
@@ -17,13 +14,12 @@ namespace GitRepositoryManager
 	public class Repository
 	{
 		private static List<Repository> _repos = new List<Repository>();
-		public static Repository Get(ICredentialManager credentials, string url, string localDestination, string copyDestination, string subFolder, string branch = "master", string tag = "")
+		public static Repository Get(string url, string destination, string subFolder, string branch = "master", string tag = "")
 		{
 			foreach(Repository repo in _repos)
 			{
 				if(repo._state.Url == url &&
-					repo._state.CopyDestination == copyDestination &&
-					repo._state.LocalDestination == localDestination &&
+					repo._state.Destination == destination &&
 					repo._state.SubFolder == subFolder)
 				{
 					if (repo._state.Branch != branch || repo._state.Tag != tag)
@@ -35,19 +31,18 @@ namespace GitRepositoryManager
 				}
 			}
 
-			Repository newRepo = new Repository(credentials, url, localDestination, copyDestination, subFolder, branch, tag);
+			Repository newRepo = new Repository(url, destination, subFolder, branch, tag);
 			_repos.Add(newRepo);
 			return newRepo;
 		}
 
-		public static void Remove(string url, string localDestination, string copyDestination)
+		public static void Remove(string url, string destination)
 		{
 			for(int i = _repos.Count-1; i >=0 ; i--)
 			{
 				Repository repo = _repos[i];
 				if (repo._state.Url == url &&
-					repo._state.CopyDestination == copyDestination &&
-					repo._state.LocalDestination == localDestination)
+					repo._state.Destination == destination)
 				{
 					_repos[i].TryRemoveCopy();
 					_repos.RemoveAt(i);
@@ -64,11 +59,9 @@ namespace GitRepositoryManager
 
 		public class RepoState
 		{
-			public ICredentialManager CredentialManager;
 			public string Url; //Remote repo base
-			public string LocalDestination; //Where the repo will be cloned to.
-			public string CopyDestination; //Where the required part of the repo will be coppied to.
-			public string SubFolder; 
+			public string Destination; //Where the repo will be cloned to..
+			public string SubFolder;
 			public string Branch;
 			public string Tag;
 		}
@@ -92,14 +85,12 @@ namespace GitRepositoryManager
 
 		private ConcurrentQueue<Progress> _progressQueue = new ConcurrentQueue<Progress>();
 
-		public Repository(ICredentialManager credentials, string url, string localDestination, string copyDestination, string subFolder, string branch = "master", string tag = "")
+		public Repository(string url, string destination, string subFolder, string branch = "master", string tag = "")
 		{
 			_state = new RepoState
 			{
-				CredentialManager = credentials,
 				Url = url,
-				LocalDestination = localDestination,
-				CopyDestination = copyDestination,
+				Destination = destination,
 				SubFolder = subFolder,
 				Branch = branch,
 				Tag = tag
@@ -110,7 +101,7 @@ namespace GitRepositoryManager
 		{
 			if(!_inProgress)
 			{
-				_inProgress = true;	
+				_inProgress = true;
 				_lastOperationSuccess = true;
 				ThreadPool.QueueUserWorkItem(UpdateTask, _state);
 				return true;
@@ -123,179 +114,13 @@ namespace GitRepositoryManager
 
 		public bool TryRemoveCopy()
 		{
-			if (!Directory.Exists(_state.LocalDestination))
+			if (!Directory.Exists(_state.Destination))
 			{
 				return false;
 			}
 
-			Directory.Delete(_state.CopyDestination, true);
+			Directory.Delete(_state.Destination, true);
 			return true;
-		}
-
-		public List<string> Copy(out List<string> straysToBeDeleted)
-		{
-			straysToBeDeleted = new List<string>();
-			string localTarget = Path.Combine(_state.LocalDestination, _state.SubFolder);
-			string localDestination = _state.CopyDestination; //Path.Combine(_state.CopyDestination, _state.SubFolder);
-			if (!Directory.Exists(localTarget))
-			{
-				return new List<string>();
-			}
-
-			return DirectoryCopy(localTarget, localDestination, new string[] { ".git" }, ref straysToBeDeleted);
-
-			// Modified from https://docs.microsoft.com/en-us/dotnet/standard/io/how-to-copy-directories?redirectedfrom=MSDN
-			// Main change is adding support for returning strays (files that exist in the destination that were not coppied)
-			List<string> DirectoryCopy(string sourceDirName, string destDirName, string[] foldersToIgnore, ref List<string> strays)
-			{
-				List<string> modifiedFiles = new List<string>();
-
-				// Get the subdirectories for the specified directory.
-				DirectoryInfo dir = new DirectoryInfo(sourceDirName);
-
-				if (!dir.Exists)
-				{
-					throw new DirectoryNotFoundException(
-						"Source directory does not exist or could not be found: "
-						+ sourceDirName);
-				}
-
-				DirectoryInfo destDir = new DirectoryInfo(destDirName);
-
-				DirectoryInfo[] dirs = dir.GetDirectories();
-
-				// If the destination directory doesn't exist, create it.
-				if (!Directory.Exists(destDirName))
-				{
-					Directory.CreateDirectory(destDirName);
-				}
-
-				//Get all destination directories so we can check them off the list and end up with only stray ones (ones that do not exist in the source directory)
-				//These will then be used to find all the stray files in the stray directories.
-				List<DirectoryInfo> potentialStrayDesinationDirectories = new List<DirectoryInfo>();
-				potentialStrayDesinationDirectories = new List<DirectoryInfo>(destDir.GetDirectories());
-
-				List<FileInfo> potentialStrays = new List<FileInfo>();
-				if (destDir.Exists)
-				{
-					potentialStrays = new List<FileInfo>(destDir.GetFiles());
-				}
-
-				// Get the files in the directory and copy them to the new location.
-				FileInfo[] files = dir.GetFiles();
-				foreach (FileInfo file in files)
-				{
-					string temppath = Path.Combine(destDirName, file.Name);
-
-					//Remove potential strays when they match a new file to be coppied
-					for(int i = 0; i < potentialStrays.Count; i++)
-					{
-						if(potentialStrays[i].FullName.Replace('\\', '/') == temppath.Replace('\\', '/'))
-						{
-							potentialStrays.RemoveAt(i);
-						}
-					}
-
-					if (File.Exists(temppath))
-					{
-						File.SetAttributes(temppath, FileAttributes.Normal);
-					}
-
-					file.CopyTo(temppath, true);
-					modifiedFiles.Add(temppath);
-				}
-
-				//Copy sub directories
-				foreach (DirectoryInfo subdir in dirs)
-				{
-					if(!foldersToIgnore.Contains(subdir.Name))
-					{
-						string temppath = Path.Combine(destDirName, subdir.Name);
-						for (int i = 0; i < potentialStrayDesinationDirectories.Count; i++)
-						{
-							if(potentialStrayDesinationDirectories[i].FullName.Replace('\\', '/') == temppath.Replace('\\', '/'))
-							{
-								potentialStrayDesinationDirectories.RemoveAt(i);
-							}
-						}
-
-						modifiedFiles.AddRange(DirectoryCopy(subdir.FullName, temppath, foldersToIgnore, ref strays));
-					}
-				}
-
-				//At this point any remaining directories are totally stray. All files inside the directories themselves need to be deleted.
-				foreach(DirectoryInfo strayDir in potentialStrayDesinationDirectories)
-				{
-					FileInfo[] strayFiles = strayDir.GetFiles("*", SearchOption.AllDirectories);
-					potentialStrays.AddRange(strayFiles);
-				}
-
-				foreach(FileInfo info in potentialStrays)
-				{
-					strays.Add(info.FullName);
-				}
-
-				return modifiedFiles;
-			}
-		}
-
-		public void CopyBackChanges()
-		{
-			//Swapped from forward copy. Other logic can stay the same.
-			string localTarget = _state.CopyDestination;
-			string localDestination =  Path.Combine(_state.LocalDestination, _state.SubFolder);
-
-			if (!Directory.Exists(localTarget))
-			{
-				return;
-			}
-
-			DirectoryCopy(localTarget, localDestination);
-
-			// Modified from https://docs.microsoft.com/en-us/dotnet/standard/io/how-to-copy-directories?redirectedfrom=MSDN
-			void DirectoryCopy(string sourceDirName, string destDirName)
-			{
-				// Get the subdirectories for the specified directory.
-				DirectoryInfo dir = new DirectoryInfo(sourceDirName);
-
-				if (!dir.Exists)
-				{
-					throw new DirectoryNotFoundException(
-						"Source directory does not exist or could not be found: "
-						+ sourceDirName);
-				}
-
-				DirectoryInfo destDir = new DirectoryInfo(destDirName);
-
-				DirectoryInfo[] dirs = dir.GetDirectories();
-
-				// If the destination directory doesn't exist, create it.
-				if (!Directory.Exists(destDirName))
-				{
-					Directory.CreateDirectory(destDirName);
-				}
-
-				// Get the files in the directory and copy them to the new location.
-				FileInfo[] files = dir.GetFiles();
-				foreach (FileInfo file in files)
-				{
-					string temppath = Path.Combine(destDirName, file.Name);
-
-					if (File.Exists(temppath))
-					{
-						File.SetAttributes(temppath, FileAttributes.Normal);
-					}
-
-					file.CopyTo(temppath, true);
-				}
-
-				//Copy sub directories
-				foreach (DirectoryInfo subdir in dirs)
-				{		
-					string temppath = Path.Combine(destDirName, subdir.Name);
-					DirectoryCopy(subdir.FullName, temppath);	
-				}
-			}
 		}
 
 		public void CancelUpdate()
@@ -312,7 +137,7 @@ namespace GitRepositoryManager
 		{
 			get
 			{
-				return _inProgress; 
+				return _inProgress;
 			}
 		}
 
@@ -336,7 +161,7 @@ namespace GitRepositoryManager
 		{
 			Progress currentProgress;
 			if(_progressQueue.Count > 0)
-			{	
+			{
 				if(_progressQueue.Count > 1)
 				{
 					_progressQueue.TryDequeue(out currentProgress);
@@ -355,12 +180,12 @@ namespace GitRepositoryManager
 		}
 
 		/// <summary>
-		/// Runs in a thread pool. should clone then checkout the appropriate branch/commit. copy subdirectory into specified repo.
+		/// Runs in a thread pool. Should clone then checkout the appropriate branch/commit. copy subdirectory into specified repo.
 		/// </summary>
 		/// <param name="stateInfo"></param>
 		private void UpdateTask(object stateInfo)
 		{
-			//Do as much as possible outside of unity so we dont get constant rebuilds. Only when everything is ready 
+			//Do as much as possible outside of unity so we dont get constant rebuilds. Only when everything is ready
 			RepoState state = (RepoState)stateInfo;
 
 			if(state == null)
@@ -369,7 +194,7 @@ namespace GitRepositoryManager
 				_progressQueue.Enqueue(new Progress(0, "Repository state info is null"));
 				return;
 			}
-
+			/*
 			if (state.CredentialManager == null)
 			{
 				_lastOperationSuccess = false;
@@ -380,12 +205,12 @@ namespace GitRepositoryManager
 			FetchOptions fetchOptions = new FetchOptions()
 			{
 				/*TagFetchMode = TagFetchMode.All,
-				OnTransferProgress = new LibGit2Sharp.Handlers.TransferProgressHandler((progress) => 
+				OnTransferProgress = new LibGit2Sharp.Handlers.TransferProgressHandler((progress) =>
 				{
 					_progressQueue.Enqueue(new Progress(((float)progress.ReceivedObjects) / progress.TotalObjects, "Fetching " + progress.ReceivedObjects + "/" + progress.TotalObjects + "(" + progress.ReceivedBytes + " bytes )"));
-					
+
 					return _cancellationPending;
-				}),*/
+				}),*//*
 				CredentialsProvider = (credsUrl, user, supportedCredentials) =>
 				{
 					state.CredentialManager.GetCredentials(credsUrl, user, supportedCredentials, out var credentials, out string message);
@@ -410,7 +235,7 @@ namespace GitRepositoryManager
 					{
 						FetchOptions = fetchOptions
 					};
-					
+
 					// User information to create a merge commit. Should not happen as we force checkout before pulling.
 					var signature = new LibGit2Sharp.Signature(
 						new Identity("RepositoryManager", "repositorymanager@mergemail.com"), DateTimeOffset.Now);
@@ -429,7 +254,7 @@ namespace GitRepositoryManager
 					}
 
 					/*try
-					{					
+					{
 						var remote = repo.Network.Remotes["origin"];
 						var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
 
@@ -457,7 +282,7 @@ namespace GitRepositoryManager
 					{
 						_progressQueue.Enqueue(new Progress(0, "Fetch failed: " + e.Message));
 						_lastOperationSuccess = false;
-					}*/
+					}*//*
 				}
 			}
 			else
@@ -483,7 +308,7 @@ namespace GitRepositoryManager
 					OnCheckoutProgress = new LibGit2Sharp.Handlers.CheckoutProgressHandler((message, value, total) =>
 					{
 						_progressQueue.Enqueue(new Progress(Math.Max(Math.Min(((float)value) / total, 1), 0), message));
-					}), // Handler for checkout progress information.	
+					}), // Handler for checkout progress information.
 					FetchOptions = fetchOptions
 				};
 
@@ -509,7 +334,7 @@ namespace GitRepositoryManager
 					InstallAndPullLFS(state.LocalDestination);
 				}
 				catch(Exception e)
-				{	
+				{
 					_progressQueue.Enqueue(new Progress(0, "LFS Pull failed: " + e.Message));
 					_lastOperationSuccess = false;
 				}
@@ -575,7 +400,7 @@ namespace GitRepositoryManager
 			};
 
 			pullProcess.Start();
-			pullProcess.WaitForExit();
+			pullProcess.WaitForExit();*/
 		}
 	}
 }
