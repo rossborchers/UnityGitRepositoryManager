@@ -60,6 +60,9 @@ git submodules **[do not](https://stackoverflow.com/questions/5303496/how-to-cha
 
 I've heard people argue that when you need a subfolder what you need to do is split into 2 repositories. but just because you want to share your assets folder separately to your project does not mean that they are decoupled. In the name of cohesion and sanity, this is a bad idea!
 
+##### Git sparse checkout
+Since making this project sparse checkout has been released. This combined with submodules may be a decent alternative. 
+
 ### In Summary
 Updating multiple repositories is slow, monoliths are bad. We need a way to update multiple repositories fast.
 The use case I've described does not satisfy the same use case as UPM or any other package managers I'm aware of. The intention is for this to be used in parallel with the Unity Package Manager. This is for in-development or project-oriented repositories, It allows for us to keep modular and atomic repositories that are reusable while maintaining the ease of use and mutability of a single project workflow. 
