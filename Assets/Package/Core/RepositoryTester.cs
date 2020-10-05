@@ -42,11 +42,14 @@ namespace GitRepositoryManager
 
 		private void TestRepositoryValid(object state)
 		{
+			//TODO: check subfolder is a valid URL
 			TestState testState = (TestState)state;
 
 			try
 			{
-				if (GitProcessHelper.CheckRemoteExists(testState.Url, testState.Branch))
+				string message = string.Empty;
+				if (GitProcessHelper.CheckRemoteExists(testState.Url, testState.Branch,
+					(success, msg) => { message = msg; }))
 				{
 					_callbacks.Enqueue(new CallbackData()
 					{
@@ -59,7 +62,7 @@ namespace GitRepositoryManager
 					_callbacks.Enqueue(new CallbackData()
 					{
 						Callback = testState.OnComplete,
-						Data = new Tuple<bool, string>(false, $"Failed to connect to url\n{testState.Url} {GitProcessHelper.LastError}")
+						Data = new Tuple<bool, string>(false, $"Failed to connect to url\n{testState.Url} {message}")
 					});
 				}
 			}

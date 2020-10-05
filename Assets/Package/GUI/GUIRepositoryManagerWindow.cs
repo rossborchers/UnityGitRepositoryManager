@@ -9,9 +9,9 @@ using UnityEngine;
 
 namespace GitRepositoryManager
 {
-	public class RepoManagerWindow : EditorWindow
+	public class GUIRepositoryManagerWindow : EditorWindow
 	{
-		private static RepoManagerWindow _window;
+		private static GUIRepositoryManagerWindow _window;
 
 		[Serializable]
 		private class DependencyInfo
@@ -27,7 +27,7 @@ namespace GitRepositoryManager
 
 		private AnimBool _showAddDependencyMenu;
 
-		private List<RepoPanel> _repoPanels;
+		private List<GUIRepositoryPanel> _repoPanels;
 
 		private RepositoryTester _tester;
 
@@ -37,10 +37,8 @@ namespace GitRepositoryManager
 		private bool showWarningMessage;
 		private bool lastFrameWasWaitingToShowWarning;
 
-		private const string FULL_RE_IMPORT_KEY = "RepositoryManager.FullReImport";
-
-		private HashSet<RepoPanel> _reposWereBusy = new HashSet<RepoPanel>();
-		private HashSet<RepoPanel> _reposBusy = new HashSet<RepoPanel>();
+		private HashSet<GUIRepositoryPanel> _reposWereBusy = new HashSet<GUIRepositoryPanel>();
+		private HashSet<GUIRepositoryPanel> _reposBusy = new HashSet<GUIRepositoryPanel>();
 
 		[MenuItem("Window/Repository Manager", priority = 1500)]
 		static void Init()
@@ -57,9 +55,18 @@ namespace GitRepositoryManager
 				}
 			}
 
-			_window = (RepoManagerWindow)GetWindow<RepoManagerWindow>(types.ToArray());
+			_window = (GUIRepositoryManagerWindow)GetWindow<GUIRepositoryManagerWindow>(types.ToArray());
 			_window.titleContent = new GUIContent("Repository Manager");
 			_window.Show();
+		}
+
+		private Texture2D _editIcon;
+		private Texture2D _removeIcon;
+
+		private void LoadAssets()
+		{
+			_editIcon = Resources.Load("RepositoryManager/" + "Edit") as Texture2D;
+			_removeIcon = Resources.Load("RepositoryManager/" + "Remove") as Texture2D;
 		}
 
 		private void UpdateDependencies(List<Dependency> updatedDependencies = null)
@@ -100,102 +107,55 @@ namespace GitRepositoryManager
 			}
 
 			//Update repo panels
-			_repoPanels = new List<RepoPanel>();
+			_repoPanels = new List<GUIRepositoryPanel>();
 			foreach (Dependency dependency in _dependencies.Dependencies)
 			{
 				if (_repoPanels.FindAll(p => dependency.Url == p.DependencyInfo.Url).Count == 0)
 				{
-					RepoPanel panel = new RepoPanel(_repoPath, dependency);
+					GUIRepositoryPanel panel = new GUIRepositoryPanel(dependency, _editIcon, _removeIcon);
 					panel.OnRemovalRequested += OnPanelRemovalRequested;
-					panel.OnDeleteAssetsRequested += DeleteAssets;
-					panel.OnCopyFinished += (assets, updatedRepos) =>  //TODO: never used?
+					panel.OnRefreshRequested += (updatedRepos) =>
 					{
-						UpdateAssetDatabaseForNewAssets(assets, updatedRepos);
+						UpdateAssetDatabaseAndTakeSnapshots(updatedRepos);
 					};
+					panel.OnEditRequested += OnPanelEditRequested;
 					_repoPanels.Add(panel);
 				}
 			}
 			Repaint();
 		}
 
-		//This will be called after a copy where the files were found in the directories explored by the copy, but never replaced.
-		//This means they are local only strays that should be removed.
-		private void DeleteAssets(List<string> toDelete)
+		private void OnPanelEditRequested(Dependency dependencyInfo, string path)
 		{
-			for (int i = 0; i < toDelete.Count; i++)
-			{
-				string extension = Path.GetExtension(toDelete[i]);
-				if (extension == ".meta")
-				{
-					//dont delete meta files directly.
-					continue;
-				}
-
-				string assetDBPath = GetAssetDatabasePathFromFullPath(toDelete[i]);
-
-				EditorUtility.DisplayProgressBar("Cleaning Repositories", "Removing stray files. Please wait a moment" + GUIUtility.GetLoadingDots(), ((float)i) / toDelete.Count);
-				AssetDatabase.DeleteAsset(assetDBPath);
-				//Debug.Log("Deleting" + assetDBPath);
-
-				string toDeleteLocal = toDelete[i];
-
-				//Delete asset does not happen straight away.
-				//TODO: this is not recursing properly. File still exists.
-				string deleteDirectory = Path.GetDirectoryName(toDeleteLocal);
-				if (Directory.GetFiles(deleteDirectory).Length == 0 && Directory.GetDirectories(deleteDirectory).Length == 0)
-				{
-					Directory.Delete(deleteDirectory);
-					//Debug.Log("Deleting directory " + deleteDirectory);
-					//Recurse upwards deleting any directories with no files or folders.
-					DirectoryInfo parentDir = Directory.GetParent(deleteDirectory);
-					int filesCount = Directory.GetFiles(parentDir.FullName).Length;
-					int directoryCount = Directory.GetDirectories(parentDir.FullName).Length;
-					while (directoryCount == 0 && filesCount == 0)
-					{
-						Directory.Delete(parentDir.FullName);
-						//Debug.Log("Deleting directory " + parentDir.FullName);
-						parentDir = Directory.GetParent(parentDir.FullName);
-						//Debug.Log("Evaluating next directory " + parentDir.FullName);
-					}
-				}
-			}
+			_potentialNewDependency.Url = dependencyInfo.Url;
+			_potentialNewDependency.Branch = dependencyInfo.Branch;
+			_potentialNewDependency.Name = dependencyInfo.Name;
+			_potentialNewDependency.SubFolder = dependencyInfo.SubFolder;
+			_showAddDependencyMenu.target = true;
 		}
 
-		private void UpdateAssetDatabaseForNewAssets(List<string> coppiedAssets, params RepoPanel[] updatedRepos)
+		private void UpdateAssetDatabaseAndTakeSnapshots(params GUIRepositoryPanel[] updatedRepos)
 		{
-			EditorUtility.DisplayProgressBar("Importing Repositories", "Performing full re-import" + GUIUtility.GetLoadingDots(), (float)EditorApplication.timeSinceStartup % 1);
+			EditorUtility.DisplayProgressBar("Importing Repositories", "Performing re-import" + GUIUtility.GetLoadingDots(), (float)EditorApplication.timeSinceStartup % 1);
 			AssetDatabase.Refresh();
 
 			//snapshot folder and file state to compare against later!
-			foreach (RepoPanel panel in updatedRepos)
+			foreach (GUIRepositoryPanel panel in updatedRepos)
 			{
 				panel.TakeBaselineSnapshot();
 			}
-
 			EditorUtility.ClearProgressBar();
-		}
-
-		private string GetAssetDatabasePathFromFullPath(string fullPath)
-		{
-			fullPath = fullPath.Replace('\\', '/');
-			string assetDBPath = fullPath.Replace(Application.dataPath, "");
-
-			if (Path.IsPathRooted(assetDBPath))
-			{
-				assetDBPath = assetDBPath.TrimStart(Path.DirectorySeparatorChar);
-				assetDBPath = assetDBPath.TrimStart(Path.AltDirectorySeparatorChar);
-			}
-
-			return Path.Combine("Assets", assetDBPath);
 		}
 
 		private void OnPanelRemovalRequested(string name, string url, string repoPath)
 		{
+			EditorUtility.DisplayProgressBar("Removing Repository", $"Removing {name} and re-importing" + GUIUtility.GetLoadingDots(), (float)EditorApplication.timeSinceStartup % 1);
+
 			for (int i = 0; i < _dependencies.Dependencies.Count; i++)
 			{
 				if (_dependencies.Dependencies[i].Name == name && _dependencies.Dependencies[i].Url == url)
 				{
-					RepoPanel panel = _repoPanels.Find(p => _dependencies.Dependencies[i].Url == p.DependencyInfo.Url);
+					GUIRepositoryPanel panel = _repoPanels.Find(p => _dependencies.Dependencies[i].Url == p.DependencyInfo.Url);
 					_dependencies.Dependencies.RemoveAt(i);
 					Repository.Remove(url, repoPath);
 				}
@@ -205,6 +165,8 @@ namespace GitRepositoryManager
 			AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
 
 			UpdateDependencies(_dependencies.Dependencies);
+
+			EditorUtility.ClearProgressBar();
 		}
 
 		private void OnFocus()
@@ -214,6 +176,7 @@ namespace GitRepositoryManager
 
 		private void OnEnable()
 		{
+			LoadAssets();
 			UpdateDependencies();
 
 			_showAddDependencyMenu = new AnimBool(false);
@@ -251,7 +214,7 @@ namespace GitRepositoryManager
 			}
 
 			_reposBusy.Clear();
-			foreach (RepoPanel panel in _repoPanels)
+			foreach (GUIRepositoryPanel panel in _repoPanels)
 			{
 				if (panel.Update())
 				{
@@ -264,30 +227,24 @@ namespace GitRepositoryManager
 				}
 			}
 
-			List<RepoPanel> updatedRepos = new List<RepoPanel>();
+			List<GUIRepositoryPanel> updatedRepos = new List<GUIRepositoryPanel>();
 
 			//Repos just finished updating. Time to copy.
-			foreach (RepoPanel panel in _repoPanels)
+			foreach (GUIRepositoryPanel panel in _repoPanels)
 			{
 				//check what repos just finished updating
 				if (_reposWereBusy.Contains(panel) && !_reposBusy.Contains(panel))
 				{
 					updatedRepos.Add(panel);
-					//coppiedAssets.AddRange(panel.CopyRepository());
 				}
 			}
-
-		//	if(coppiedAssets.Count > 0)
-			//{
-			//	UpdateAssetDatabaseForNewAssets(coppiedAssets, EditorPrefs.GetBool(FULL_RE_IMPORT_KEY, true), updatedRepos.ToArray());
-			//}
 
 			if (repaint)
 			{
 				Repaint();
 			}
 
-			_reposWereBusy = new HashSet<RepoPanel>(_reposBusy);
+			_reposWereBusy = new HashSet<GUIRepositoryPanel>(_reposBusy);
 		}
 
 		private void OnGUI()
@@ -307,12 +264,18 @@ namespace GitRepositoryManager
 
 			GUI.Label(labelRect, "Repositories", EditorStyles.miniLabel);
 
-			if (GUI.Button(updateAllRect, new GUIContent("Update All", "Update all repositories. You will be asked before overwriting local changes."), EditorStyles.toolbarButton))
+			List<bool> localChangesFlags = new List<bool>(_repoPanels.Count);
+			foreach (var panel in _repoPanels)
+			{
+				localChangesFlags.Add(panel.HasLocalChanges(true));
+			}
+
+			if (GUI.Button(updateAllRect, new GUIContent("Update All", "Update all. You will be asked before overwriting local changes."), EditorStyles.toolbarButton))
 			{
 				bool localChangesDetected = false;
 				for (int i = 0; i < _repoPanels.Count; i++)
 				{
-					if(_repoPanels[i].HasLocalChanges())
+					if(localChangesFlags[i])
 					{
 						localChangesDetected = true;
 						break;
@@ -321,7 +284,7 @@ namespace GitRepositoryManager
 
 				if(localChangesDetected)
 				{
-					int choice = EditorUtility.DisplayDialogComplex("Local Changes Detected", "One or more repositories have local changes. Proceed with caution.", "Update and wipe all changes",  "Cancel", "Update only clean repositories");
+					int choice = EditorUtility.DisplayDialogComplex("Local Changes Detected", "One or more repositories have local changes. Proceed with caution.", "Update and wipe all changes",  "Cancel", "Update only clean submodules");
 					switch(choice)
 					{
 						case 0:
@@ -343,7 +306,7 @@ namespace GitRepositoryManager
 							//Update only clean
 							for (int i = 0; i < _repoPanels.Count; i++)
 							{
-								if (!_repoPanels[i].HasLocalChanges())
+								if (!localChangesFlags[i])
 								{
 									_repoPanels[i].UpdateRepository();
 								}
@@ -368,7 +331,9 @@ namespace GitRepositoryManager
 				_repoPanels[i].OnDrawGUI(i);
 			}
 
+
 			GUIUtility.DrawLine();
+
 
 			//This is a dumb but kidna fancy way of adding new dependencies.
 			if (_tester.Testing)
@@ -378,35 +343,17 @@ namespace GitRepositoryManager
 
 			if (EditorGUILayout.BeginFadeGroup(_showAddDependencyMenu.faded))
 			{
-
 				_potentialNewDependency.Url = EditorGUILayout.TextField("Url", _potentialNewDependency.Url);
 
-				//TODO: For now tags are not exposed. When we do expose them we may have to have both branch and tag as git expects a branch in lots of places
-				//Unless we can get branch from tag but not sure its worth the effort
+				if (_potentialNewDependency.Branch == null) _potentialNewDependency.Branch = "master";
 				_potentialNewDependency.Branch = EditorGUILayout.TextField("Branch", _potentialNewDependency.Branch);
-				//_potentialNewDependency.Tag = null;
 
 				EditorGUILayout.Space();
 
 				_potentialNewDependency.Name = EditorGUILayout.TextField("Name", _potentialNewDependency.Name);
 				_potentialNewDependency.SubFolder = EditorGUILayout.TextField("Subfolder", _potentialNewDependency.SubFolder);
 
-				/*GUILayout.BeginHorizontal();
-				selectedFilterIndex = EditorGUILayout.Popup(selectedFilterIndex, new string[] { "Branch", "Tag" }, GUILayout.Width(146));
-
-				if (selectedFilterIndex == 0)
-				{
-					if (_potentialNewDependency.Branch == null) _potentialNewDependency.Branch = "master";
-					_potentialNewDependency.Branch = GUILayout.TextField(_potentialNewDependency.Branch);
-					_potentialNewDependency.Tag = null;
-				}
-				else
-				{
-					if (_potentialNewDependency.Tag == null) _potentialNewDependency.Tag = "";
-					_potentialNewDependency.Tag = GUILayout.TextField(_potentialNewDependency.Tag);
-					_potentialNewDependency.Branch = null;
-				}
-				GUILayout.EndHorizontal();*/
+				EditorGUILayout.Space();
 			}
 			else
 			{
@@ -425,7 +372,7 @@ namespace GitRepositoryManager
 
 			if (!_tester.Testing)
 			{
-				if (GUI.Button(addButtonRect, _showAddDependencyMenu.target ? "Add" : "Add Repository", EditorStyles.miniButton))
+				if (GUI.Button(addButtonRect, _showAddDependencyMenu.target ? "Confirm" : "Add Repository", EditorStyles.miniButton))
 				{
 					addDependencyFailureMessage = string.Empty;
 					_addTime = EditorApplication.timeSinceStartup;
@@ -439,9 +386,9 @@ namespace GitRepositoryManager
 						//simple validation of fields
 						bool validationSuccess = true;
 
-						if (String.IsNullOrEmpty(_potentialNewDependency.Branch)/* && String.IsNullOrEmpty(_potentialNewDependency.Tag)*/)
+						if (String.IsNullOrEmpty(_potentialNewDependency.Branch))
 						{
-							addDependencyFailureMessage = "Either a valid branch or tag must be specified";
+							addDependencyFailureMessage = "A valid branch must be specified";
 							validationSuccess = false;
 						}
 
@@ -476,7 +423,7 @@ namespace GitRepositoryManager
 									UpdateDependencies(_dependencies.Dependencies);
 
 									//Update the newly added repo
-									foreach (RepoPanel panel in _repoPanels)
+									foreach (GUIRepositoryPanel panel in _repoPanels)
 									{
 										if (panel.DependencyInfo.Url == _potentialNewDependency.Url &&
 											panel.DependencyInfo.Branch == _potentialNewDependency.Branch &&
@@ -528,7 +475,6 @@ namespace GitRepositoryManager
 
 		private void CloseAddMenu()
 		{
-			//selectedFilterIndex = 0;
 			addDependencyFailureMessage = string.Empty;
 			_showAddDependencyMenu.target = false;
 			_potentialNewDependency = new Dependency();

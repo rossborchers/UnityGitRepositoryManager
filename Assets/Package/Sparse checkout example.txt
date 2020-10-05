@@ -1,0 +1,16 @@
+﻿git -C $(Build.SourcesDirectory) rev-parse
+if %errorlevel%==128 (
+echo =========== Running minimal clone into: $(Build.SourcesDirectory) ============
+git clone https://github.com/RenderHeads/proj-202001-MOS-APPS.git --filter=blob:none --single-branch --branch dev --depth 1 --no-checkout $(Build.SourcesDirectory)
+echo ====================== Initializing sparse checkout ==========================
+cd $(Build.SourcesDirectory)
+git sparse-checkout init --cone
+echo ============ Running sparse checkout for $(Build.SourcesDirectory) =============
+git sparse-checkout set 3D2_ArchitectureGlobe
+) else (
+echo =================== Shallow Fetch and Reset on $(Build.SourceBranch) ====================
+git checkout -B azure_build
+git fetch origin +$(Build.SourceBranch):refs/remotes/origin/azure/$(Build.SourceBranchName) --depth 1
+git reset --hard origin/azure/$(Build.SourceBranchName)
+)
+exit

@@ -2,21 +2,34 @@
 <project version="4">
   <component name="ContentModelStore">
     <e p="C:\Projects\Ross\UnityGitRepositoryManager" t="IncludeRecursive">
+      <e p="Assembly-CSharp-Editor.csproj" t="IncludeRecursive" />
       <e p="Assembly-CSharp.csproj" t="IncludeRecursive" />
       <e p="Assets" t="Include">
-        <e p="CopyPackageToRoot.cs" t="Include" />
         <e p="Package" t="Include">
-          <e p="CopyPackageToRoot.cs" t="Include" />
           <e p="Core" t="Include">
+            <e p="Dependency.cs" t="Include" />
             <e p="GitProcessHelper.cs" t="Include" />
             <e p="Repository.cs" t="Include" />
             <e p="RepositoryTester.cs" t="Include" />
           </e>
-          <e p="Dependency.cs" t="Include" />
-          <e p="GitRepoManager.Editor.asmdef" t="Include" />
-          <e p="GUIUtility.cs" t="Include" />
-          <e p="RepoManagerWindow.cs" t="Include" />
-          <e p="RepoPanel.cs" t="Include" />
+          <e p="GitSubmoduleManager.Editor.asmdef" t="Include" />
+          <e p="GUI" t="Include">
+            <e p="GUIRepositoryManagerWindow.cs" t="Include" />
+            <e p="GUIRepositoryPanel.cs" t="Include" />
+            <e p="GUIUtility.cs" t="Include" />
+          </e>
+          <e p="Sparse checkout example.txt" t="Include" />
+        </e>
+        <e p="Repositories" t="Include">
+          <e p="Boilerplate" t="Include">
+            <e p="Boostrapper" t="Include">
+              <e p="Boostrapper.cs" t="Include" />
+              <e p="Editor" t="Include">
+                <e p="LoadBootstrapper.cs" t="Include" />
+              </e>
+              <e p="LevelData.cs" t="Include" />
+            </e>
+          </e>
         </e>
       </e>
       <e p="GitRepoManager.Editor.csproj" t="IncludeRecursive" />
@@ -25,6 +38,7 @@
       <e p="Temp\bin" t="ExcludeRecursive" />
       <e p="UnityGitRepositoryManager.sln" t="IncludeFlat" />
     </e>
+    <e p="C:\Users\Renderheads 1\.Rider2019.3\config\extensions" t="IncludeRecursive" />
     <e p="C:\Users\Renderheads 1\.Rider2019.3\system\extResources" t="IncludeRecursive" />
     <e p="C:\Users\Renderheads 1\.Rider2019.3\system\resharper-host\local\Transient\ReSharperHost\v193\SolutionCaches\_UnityGitRepositoryManager.1591149256.00" t="ExcludeRecursive" />
   </component>
