@@ -5,6 +5,7 @@ using System.IO;
 using UnityEditor;
 using UnityEditor.AnimatedValues;
 using UnityEditor.Callbacks;
+using UnityEditor.Graphs;
 using UnityEngine;
 
 namespace GitRepositoryManager
@@ -62,11 +63,17 @@ namespace GitRepositoryManager
 
 		private Texture2D _editIcon;
 		private Texture2D _removeIcon;
+		private Texture2D _pushIcon;
+		private Texture2D _pullIcon;
+		private Texture2D _openTerminalIcon;
 
 		private void LoadAssets()
 		{
 			_editIcon = Resources.Load("RepositoryManager/" + "Edit") as Texture2D;
 			_removeIcon = Resources.Load("RepositoryManager/" + "Remove") as Texture2D;
+			_pushIcon = Resources.Load("RepositoryManager/" + "Push") as Texture2D;
+			_pullIcon = Resources.Load("RepositoryManager/" + "Pull") as Texture2D;
+			_openTerminalIcon = Resources.Load("RepositoryManager/" + "Terminal") as Texture2D;
 		}
 
 		private void UpdateDependencies(List<Dependency> updatedDependencies = null)
@@ -112,7 +119,7 @@ namespace GitRepositoryManager
 			{
 				if (_repoPanels.FindAll(p => dependency.Url == p.DependencyInfo.Url).Count == 0)
 				{
-					GUIRepositoryPanel panel = new GUIRepositoryPanel(dependency, _editIcon, _removeIcon);
+					GUIRepositoryPanel panel = new  GUIRepositoryPanel(dependency, _editIcon, _removeIcon, _pushIcon, _pullIcon, _openTerminalIcon);
 					panel.OnRemovalRequested += OnPanelRemovalRequested;
 					panel.OnRefreshRequested += (updatedRepos) =>
 					{
@@ -447,7 +454,7 @@ namespace GitRepositoryManager
 			}
 			else
 			{
-				GUI.Label(addButtonRect, "Testing connection" + GUIUtility.GetLoadingDots() + "\n" + _potentialNewDependency.Url, EditorStyles.boldLabel);
+				GUI.Label(addButtonRect, "Testing connection" + GUIUtility.GetLoadingDots(), EditorStyles.boldLabel);
 			}
 
 			GUI.enabled = true;

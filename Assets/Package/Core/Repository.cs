@@ -10,7 +10,7 @@ namespace GitRepositoryManager
 {
 	/// <summary>
 	/// Logical component of a repository, 1-1 relationship with GUIRepopositoryPanel
-	/// Read only once created. Create a new one to change values.
+	/// Read only once created. Create a new one to chaTnge values.
 	/// </summary>
 	public class Repository
 	{
@@ -131,6 +131,16 @@ namespace GitRepositoryManager
 			}
 		}
 
+		public void OpenTerminal()
+		{
+			GitProcessHelper.OpenRepositoryInTerminal(_state.RootFolder, _state.RepositoryFolder);
+		}
+
+		public void PushChanges()
+		{
+			ThreadPool.QueueUserWorkItem(PushTask, _state);
+		}
+
 		public bool TryRemoveCopy()
 		{
 
@@ -226,6 +236,45 @@ namespace GitRepositoryManager
 				_progressQueue.Enqueue(new Progress(0, message, !success));
 			}
 		}
+
+		/// <summary>
+		/// Runs in a thread pool. Should push based on settings of push window. copy subdirectory into specified repo.
+		/// </summary>
+		/// <param name="stateInfo"></param>
+		private void PushTask(object stateInfo)
+		{
+			//Do as much as possible outside of unity so we dont get constant rebuilds. Only when everything is ready
+			RepoState state = (RepoState)stateInfo;
+
+			if(state == null)
+			{
+				_progressQueue.Enqueue(new Progress(0, "Repository state info is null",true));
+				return;
+			}
+
+			if (GitProcessHelper.RepositoryIsValid(state.RepositoryFolder, OnProgress))
+			{
+				GitProcessHelper.PushRepository(state.RootFolder,state.RepositoryFolder, state.DirectoryInRepository, state.Url, state.Branch, OnProgress);
+			}
+
+			//Once completed
+			if (_progressQueue.Count > 0)
+			{
+				//Get the latest progress
+				if (!_progressQueue.ToArray()[_progressQueue.Count-1].Error)
+				{
+					_refreshPending = true;
+				}
+			}
+
+			_inProgress = false;
+
+			void OnProgress(bool success, string message)
+			{
+				_progressQueue.Enqueue(new Progress(0, message, !success));
+			}
+		}
+
 
 		//TODO: redo for whole folder
 		private void SetIgnore(string parentRoot, string relativeFolderToIgnore, bool ignore)

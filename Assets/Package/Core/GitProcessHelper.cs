@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using JetBrains.Annotations;
+using UnityEditor;
+using UnityEngine.WSA;
 
 namespace GitRepositoryManager
 {
@@ -68,8 +70,10 @@ namespace GitRepositoryManager
             RunCommand(rootDirectory, $"git clone {url} --filter=blob:none" + (isSparse?" --sparse ":" ") + $"--single-branch --branch {branch} --depth 1 {repositoryDirectory}", onProgress, out var output);
             if (!AssertCommandOutput(", done.", output, onProgress)) { return; }
             if (!isSparse)  { return; }
-            RunCommand($"{rootDirectory}/{repositoryDirectory}", $"git sparse-checkout set {subDirectoryPathRelativeToRepository}", onProgress, out output);
+            RunCommand($"{rootDirectory}/{repositoryDirectory}", $"git sparse-checkout set \"{subDirectoryPathRelativeToRepository}\"", onProgress, out output);
             AssertCommandOutput("Running: 'git sparse-checkout set", output, onProgress);
+
+            SetEnableRepository(rootDirectory, repositoryDirectory, false, onProgress);
 
             //Submodule stuff (do we want this? Use case would be cloning a repo without repositories embedded. (added to gitignore). Could also add a filter to do this maybe? Not keen on muddying the master repo. subtrees? subrepo?)
             //----
@@ -92,8 +96,25 @@ namespace GitRepositoryManager
             }
         }
 
+        private static void SetEnableRepository(string rootDirectory, string repositoryDirectory, bool enable, Action<bool, string> onProgress)
+        {
+            string gitPath = $"{rootDirectory}/{repositoryDirectory}/{(enable?".gitsubrepository":".git")}";
+            string destinationGitPath = $"{rootDirectory}/{repositoryDirectory}/{(enable?".git":".gitsubrepository")}";
+            if (Directory.Exists(gitPath))
+            {
+                onProgress?.Invoke(true, enable?$"Enabling git for {repositoryDirectory}":$"Disabling git for {repositoryDirectory}");
+                Directory.Move(gitPath, destinationGitPath);
+            }
+            else
+            {
+                onProgress?.Invoke(true, enable?$"{repositoryDirectory} already enabled.":$"{repositoryDirectory} already disabled.");
+            }
+        }
+
         public static void UpdateRepository(string rootDirectory, string repositoryDirectory, string directoryInRepository, string url, string branch, Action<bool, string> onProgress)
         {
+            SetEnableRepository(rootDirectory, repositoryDirectory, true, onProgress);
+
             string path = $"{rootDirectory}/{repositoryDirectory}";
             RunCommand(path, $"git checkout -B {branch}", onProgress, out var output);
             if(!AssertCommandOutput("Running: 'git checkout -B ", output, onProgress)) { return; }
@@ -103,9 +124,35 @@ namespace GitRepositoryManager
 
             RunCommand(path, $"git reset --hard origin/{branch}", onProgress, out output);
             AssertCommandOutput("HEAD is now at", output, onProgress);
+
+            SetEnableRepository(rootDirectory, repositoryDirectory, false, onProgress);
+        }
+
+        public static void PushRepository(string rootDirectory, string repositoryDirectory,
+            string directoryInRepository, string url, string branch, Action<bool, string> onProgress)
+        {
+            SetEnableRepository(rootDirectory, repositoryDirectory, true, onProgress);
+
+            string path = $"{rootDirectory}/{repositoryDirectory}";
+            RunCommand(path, $"git push origin {branch}", onProgress, out var output);
+            if(!AssertCommandOutput("Running: ' ", output, onProgress)) { return; }
+
+            SetEnableRepository(rootDirectory, repositoryDirectory, false, onProgress);
         }
 
         public static void OpenRepositoryInExplorer(string rootDirectory, string repositoryDirectory)
+        {
+            string path = $"{rootDirectory}/{repositoryDirectory}";
+            Process.Start(new ProcessStartInfo()
+            {
+                FileName = path,
+                UseShellExecute = true,
+                Verb = "open"
+            });
+            //Leave the process running. User should close it manually.
+        }
+
+        public static void OpenRepositoryInTerminal(string rootDirectory, string repositoryDirectory)
         {
             string path = $"{rootDirectory}/{repositoryDirectory}";
             Process.Start(new ProcessStartInfo()

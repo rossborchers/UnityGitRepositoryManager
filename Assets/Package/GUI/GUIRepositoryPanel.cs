@@ -23,6 +23,7 @@ namespace GitRepositoryManager
 		private bool _repoWasInProgress;
 		public event Action<string, string, string> OnRemovalRequested = delegate { };
 		public event Action<Dependency, string> OnEditRequested = delegate { };
+
 		public event Action<GUIRepositoryPanel[]> OnRefreshRequested = delegate { };
 
 		//Note this updates the UI but its not serialized and should not be used for any buisiness logic.
@@ -31,6 +32,9 @@ namespace GitRepositoryManager
 
 		private Texture2D _editIcon;
 		private Texture2D _removeIcon;
+		private Texture2D _openTerminalIcon;
+		private Texture2D _pushIcon;
+		private Texture2D _pullIcon;
 
 		public string RootFolder()
 		{
@@ -120,7 +124,7 @@ namespace GitRepositoryManager
 			}
 		}
 
-		public GUIRepositoryPanel(Dependency info, Texture2D editIcon, Texture2D removeIcon)
+		public GUIRepositoryPanel(Dependency info, Texture2D editIcon, Texture2D removeIcon, Texture2D pushIcon, Texture2D pullIcon, Texture2D openTerminalIcon)
 		{
 			DependencyInfo = info;
 
@@ -129,6 +133,9 @@ namespace GitRepositoryManager
 
 			_editIcon = editIcon;
 			_removeIcon = removeIcon;
+			_pushIcon = pushIcon;
+			_pullIcon = pullIcon;
+			_openTerminalIcon = openTerminalIcon;
 		}
 
 		public bool Update()
@@ -166,26 +173,29 @@ namespace GitRepositoryManager
 			//Header rects
 
 			Rect labelRect = headerRect;
-			labelRect.width = headerRect.x + headerRect.width - 53 - 20 - 20 - 22 - 5;
+			labelRect.width = headerRect.x + headerRect.width - (90 + 15);
 			labelRect.height = 18;
 			labelRect.x += 15;
 
-			Rect updateButtonRect = headerRect;
-			updateButtonRect.x = headerRect.width - 48;
-			updateButtonRect.width = 53;
-			updateButtonRect.y += 1;
-			updateButtonRect.height = 15;
+			Rect pullButtonRect = headerRect;
+			pullButtonRect.x = headerRect.width - 20;
+			pullButtonRect.width = 20;
 
-			Rect editButtonRect = updateButtonRect;
-			editButtonRect.width = 20;
-			editButtonRect.x -= 20;
+			Rect pushButtonRect = pullButtonRect;
+			pushButtonRect.x = headerRect.width - 40;
+
+			Rect openTerminalRect = pushButtonRect;
+			openTerminalRect.x = headerRect.width - 60;
+
+			Rect editButtonRect = openTerminalRect;
+			editButtonRect.x = headerRect.width - 80;
 
 			Rect removeButtonRect = editButtonRect;
-			removeButtonRect.x -= 20;
+			removeButtonRect.x = headerRect.width - 100;
 
-			Rect localChangesRect = updateButtonRect;
+			Rect localChangesRect = removeButtonRect;
 			localChangesRect.width = 10;
-			localChangesRect.x = removeButtonRect.x - localChangesRect.width;
+			localChangesRect.x = headerRect.width - 110;
 			//Expanded rect
 
 			Rect gitBashRect = bottomRect;
@@ -231,14 +241,14 @@ namespace GitRepositoryManager
 				failureStyle.richText = true;
 				failureStyle.alignment = TextAnchor.MiddleRight;
 				GUI.Label(labelRect, new GUIContent("<b><color=red>Failure</color></b>", lastProgress.Message), failureStyle);
-				if (GUI.Button(updateButtonRect, "Retry", EditorStyles.miniButton))
+				if (GUI.Button(pullButtonRect, "Retry", EditorStyles.miniButton))
 				{
 					UpdateRepository();
 				};
 			}
 			else
 			{
-				DrawUpdateButton(updateButtonRect);
+				DrawUpdateButton(pullButtonRect);
 			}
 
 			GUIStyle iconButtonStyle = new GUIStyle( EditorStyles.miniButton);
@@ -251,9 +261,24 @@ namespace GitRepositoryManager
 					OnRemovalRequested(DependencyInfo.Name, DependencyInfo.Url, RelativeRepositoryPath());
 				}
 			};
-			if (!_repo.InProgress && GUI.Button(editButtonRect, new GUIContent(_editIcon, "Remove the repository from this project."), iconButtonStyle))
+			if (!_repo.InProgress && GUI.Button(editButtonRect, new GUIContent(_editIcon, "Edit this repository."), iconButtonStyle))
 			{
 				OnEditRequested(DependencyInfo, RelativeRepositoryPath());
+			};
+			if (!_hasLocalChanges)
+			{
+				GUI.enabled = false;
+			}
+			if (!_repo.InProgress && GUI.Button(pushButtonRect, new GUIContent(_pushIcon, "Push changes."), iconButtonStyle))
+			{
+				PushRepositoryChanges();
+			};
+
+			GUI.enabled = true;
+
+			if (!_repo.InProgress && GUI.Button(openTerminalRect, new GUIContent(_openTerminalIcon, "Open Terminal."), iconButtonStyle))
+			{
+				OpenInTerminal();
 			};
 
 			GUIStyle labelStyle = new GUIStyle(EditorStyles.label);
@@ -285,7 +310,10 @@ namespace GitRepositoryManager
 
 		private void DrawUpdateButton(Rect rect)
 		{
-			if (GUI.Button(rect, new GUIContent("Update", "Pull or clone. Copy into project."), EditorStyles.miniButton))
+			GUIStyle iconButtonStyle = new GUIStyle( EditorStyles.miniButton);
+			iconButtonStyle.padding = new RectOffset(3,3,3,3);
+
+			if (GUI.Button(rect, new GUIContent(_pullIcon, "Pull or clone into project."), iconButtonStyle))
 			{
 				//TODO: why is this button never being called?!?!
 				if (HasLocalChanges())
@@ -311,5 +339,16 @@ namespace GitRepositoryManager
 		{
 			_repo.TryUpdate();
 		}
+
+		public void OpenInTerminal()
+		{
+			_repo.OpenTerminal();
+		}
+
+		public void PushRepositoryChanges()
+		{
+			_repo.PushChanges();
+		}
+
 	}
 }
