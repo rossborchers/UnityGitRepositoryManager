@@ -352,7 +352,7 @@ namespace GitRepositoryManager
 			{
 				_potentialNewDependency.Url = EditorGUILayout.TextField("Url", _potentialNewDependency.Url);
 
-				if (_potentialNewDependency.Branch == null) _potentialNewDependency.Branch = "master";
+				if (_potentialNewDependency.Branch == null) _potentialNewDependency.Branch = "main";
 				_potentialNewDependency.Branch = EditorGUILayout.TextField("Branch", _potentialNewDependency.Branch);
 
 				EditorGUILayout.Space();

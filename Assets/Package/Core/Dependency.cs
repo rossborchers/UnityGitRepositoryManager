@@ -9,6 +9,6 @@ namespace GitRepositoryManager
 		public string SubFolder = string.Empty;
 
 		public string Url = string.Empty;
-		public string Branch = "master";
+		public string Branch = "main";
 	}
 }
