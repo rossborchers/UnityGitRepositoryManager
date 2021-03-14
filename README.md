@@ -2,7 +2,7 @@
 # This repository is archived. 
 
 ## RenderHeads now maintains this project.
-https://github.com/rossborchers/UnityPlugin-GitSubRepositoryManager
+https://github.com/RenderHeads/UnityPlugin-GitSubRepositoryManager
 
 # Unity Git Repository Manager
 
